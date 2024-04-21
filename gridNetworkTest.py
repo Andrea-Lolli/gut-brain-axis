@@ -220,6 +220,21 @@ class Model:
         read_network(fpath, self.context, create_rumor_agent, restore_agent)
         self.net = self.context.get_projection('rumor_network')
         
+        # TEST!
+        # aggiungo 4 neuroni uno per rank sia alla grid che alla network
+        # TODO da finire e vedere se gli agenti gCell riescono a scambiarci informazioni
+        testNeuron = Neuron(12,Neuron.TYPE,self.rank)
+        self.context.add(testNeuron)
+        print("aggiunto neurone al rank: " + str(self.rank))
+        x = random.default_rng.uniform(local_bounds.xmin, local_bounds.xmin + local_bounds.xextent)
+        y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
+        self.move(testNeuron, x, y)
+
+        listanodi = self.net.graph.nodes
+        self.net.add(testNeuron)
+        for node in listanodi:
+            self.net.add_edge(testNeuron, node, weight=3.1)
+        print(self.net.num_edges(testNeuron))
 
     def at_end(self):
         self.data_set.close()
