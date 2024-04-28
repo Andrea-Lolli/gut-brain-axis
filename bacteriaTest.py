@@ -172,8 +172,13 @@ class Model:
         if self.rank < total_ba_count % world_size:
             local_ba_count += 1
 
+        pts = [] #backup posizioni, TODO fa un po' schifo...
         for i in range(local_ba_count):
-            pt = self.grid.get_random_local_pt(rng) # TODO CAMBIARE! sta cosa è tutto tranne che random... 
+            while True:
+                pt = self.grid.get_random_local_pt(rng) 
+                if pt not in pts:
+                    pts.append(pt)
+                    break
             ba = Bacteria_a(i, rank)
             self.context.add(ba)
             self.grid.move(ba, pt)
@@ -185,8 +190,11 @@ class Model:
             local_bb_count += 1   
 
         for i in range(local_bb_count):
-            #print("aggiunto batterio B numero: {}, al rank: {}".format(i, self.rank))
-            pt = self.grid.get_random_local_pt(rng) # TODO controllare che le posizioni non sono duplicate...
+            while True:
+                pt = self.grid.get_random_local_pt(rng) 
+                if pt not in pts:
+                    pts.append(pt)
+                    break
             bb = Bacteria_b(i, rank)
             self.context.add(bb)
             self.grid.move(bb, pt)
@@ -207,21 +215,23 @@ class Model:
                 agent.pt = None
                 agent.mitosis = False
 
-        #duplicazione batteri
+        #mitosi batteri A
         for pt in pts:
             if len(list(model.grid.get_agents(pt))) == 0:
                 if not(pt.x < 0 or pt.x >= 10 or pt.y < 0 or pt.y >= 10):
                     model.add_bacteria_a(pt)
 
+        # elimina eventuali duplicati, si può eliminare se non importa il conto preciso dei batteri
         model.render()
 
-        nb1, nb2 = 0, 0
-        for agent in self.context.agents():
-            if isinstance(agent, Bacteria_a):
-                nb1 += 1
-            elif isinstance(agent, Bacteria_b):
-                nb2 += 1
-        #print("Batteri a: {}, Batteri b: {}, rank: {}".format(nb1, nb2, self.rank))
+        # # DEBUG rallenta tutto di brutto
+        # nb1, nb2 = 0, 0
+        # for agent in self.context.agents():
+        #     if isinstance(agent, Bacteria_a):
+        #         nb1 += 1
+        #     elif isinstance(agent, Bacteria_b):
+        #         nb2 += 1
+        # print("Batteri a: {}, Batteri b: {}, rank: {}".format(nb1, nb2, self.rank))
         
 
     def log_counts(self, tick):
@@ -265,16 +275,16 @@ class Model:
 
 
     # TODO sarebbe meglio trovare il modo di toglierlo, alcuni batteri si sovrappongono quando vengono creati ai confini del rank
-    # si può levare se non importa il count preciso dei batteri
+    # si può levare se non importa il numero preciso dei batteri per diminuire di un po i tempi di esecuzione
     def render(self):
         pts = []
         agents = []
-        for agent in model.context.agents(Bacteria_a.TYPE, Bacteria_b.TYPE):
+        for agent in model.context.agents(Bacteria_a.TYPE):
             cpt = model.grid.get_location(agent)
             if cpt not in pts:
                 pts.append(cpt)
             else:
-                #print("eliminato un agente duplicato: x {}, y: {}".format(cpt.x, cpt.y))
+                print("eliminato un agente duplicato: x {}, y: {}".format(cpt.x, cpt.y))
                 agents.append(agent)
         for agent in agents:
             model.remove_agent(agent)
