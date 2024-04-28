@@ -1,0 +1,8 @@
+random.seed: 10
+stop.at: 20
+bacteria1.count: 8
+bacteria2.count: 8
+world.width: 10
+world.height: 10
+run.number: 1
+counts_file: './outputB/bacteria_test.csv'

@@ -146,18 +146,18 @@ def restore_agent(agent_data: Tuple):
                     agent state.
     """
     uid = agent_data[0]
-    # 0 is id, 1 is type, 2 is rank
-    if uid[1] == GutCell.TYPE:
-        if uid in agent_cache:
-            gc = agent_cache[uid]
-        else:
-            gc = GutCell(uid[0], uid[2])
-            agent_cache[uid] = gc
+    # # 0 is id, 1 is type, 2 is rank
+    # if uid[1] == GutCell.TYPE:
+    #     if uid in agent_cache:
+    #         gc = agent_cache[uid]
+    #     else:
+    #         gc = GutCell(uid[0], uid[2])
+    #         agent_cache[uid] = gc
 
-        # restore the agent state from the agent_data tuple
-        gc.random_param_test = agent_data[1]
-        return gc
-    elif uid[1] == Neuron.TYPE:
+    #     # restore the agent state from the agent_data tuple
+    #     gc.random_param_test = agent_data[1]
+    #     return gc
+    if uid[1] == Neuron.TYPE:
         return Neuron(uid[0], uid[1], uid[2])
 
 
@@ -213,7 +213,7 @@ class Model:
             y = random.default_rng.uniform(local_bounds.ymin, local_bounds.ymin + local_bounds.yextent)
             self.move(gc, x, y)
 
-
+        
         #NetworkStuff:
         fpath = params['network_file']
         #self.context = ctx.SharedContext(comm)
@@ -247,6 +247,7 @@ class Model:
         tick = self.runner.schedule.tick
         self.log_counts(tick)
         self.context.synchronize(restore_agent)
+        
 
     def run(self):
         self.runner.execute()

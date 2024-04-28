@@ -1,5 +1,5 @@
 random.seed: 10
-stop.at: 50.0
+stop.at: 20
 gut_cells.count: 5
 world.width: 100
 world.height: 100
