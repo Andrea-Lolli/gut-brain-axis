@@ -1,0 +1,9 @@
+network_file: Int_network.txt
+neural_file: neural_net.txt
+stop.at: 1
+world.width: 8
+world.height: 8
+benefico.count: 1
+nocivo.count: 1
+nutrimento.nocivo: 500
+nutrimento.benefico: 500
