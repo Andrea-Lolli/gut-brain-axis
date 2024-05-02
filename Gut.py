@@ -72,13 +72,8 @@ spec = [
 class GridNghFinder:
 
     def __init__(self, xmin, ymin, xmax, ymax):
-        self.mo = np.array([-1, 0, 1, -1, 1, -1, 0, 1], dtype=np.int32) 
-        self.no = np.array([1, 1, 1, 0, 0, -1, -1, -1], dtype=np.int32)
-
-        # Questo sotto copnsidera il neighborhood con il centro compreso, se poi serve vanno scambiati
-        #self.mo = np.array([-1, 0, 1, -1, 0, 1, -1, 0, 1], dtype=np.int32) 
-        #self.no = np.array([1, 1, 1, 0, 0, 0, -1, -1, -1], dtype=np.int32)
-
+        self.mo = np.array([-1, 0, 1, -1, 0, 1, -1, 0, 1], dtype=np.int32)
+        self.no = np.array([1, 1, 1, 0, 0, 0, -1, -1, -1], dtype=np.int32)
         self.xmin = xmin
         self.ymin = ymin
         self.xmax = xmax
@@ -110,7 +105,7 @@ class Stato:
     prodotto_n: int = 0
     citochine_gut: int = 0
     citochine_brain: int = 0
-    MHC_attivo: bool = False
+    #MHC_attivo: bool = False
     # da discutere
     alfa_sin : int = 0
     beta_a: int = 0
@@ -120,58 +115,11 @@ class Stato:
     infiammazione_bc: bool = False
     err : bool = False
     def ratio(self) -> float:
-        self.ratio_bn = self.prodotto_b / self.prodotto_n
+        self.ratio_bn = (self.prodotto_b) / (self.prodotto_n)
         return self.ratio_bn
 
 
-def crea_nodo(nid, agent_type, rank, **kwargs):
-    if agent_type == Soglia.TYPE:
-         return Soglia(nid, agent_type, rank)
-    if agent_type == Neuro.TYPE:
-         return Neuro(nid, agent_type, rank)
-    if agent_type == Glia.TYPE:
-         return Glia(nid, agent_type, rank)
-
-
-agent_cache = {}
-
-def restore_nodo(agent_data):
-    #print("RESTORE :",agent_data) # DEBUG
-    uid = agent_data[0]
-    # Restore agents in GRID
-    if uid[1] == Batterio_Benefico.TYPE:
-        if uid in agent_cache:
-            bb = agent_cache[uid]
-        else:
-            bb = Batterio_Benefico(uid[0], uid[2])
-            agent_cache[uid] = bb
-        bb.riserva = agent_data[1]
-        bb.hp = agent_data[2]
-        bb.stato = agent_data[3]
-        return bb
-    if uid[1] == Batterio_Nocivo.TYPE:
-        if uid in agent_cache:
-            bn = agent_cache[uid]
-        else:
-            bn = Batterio_Nocivo(uid[0], uid[2])
-            agent_cache[uid] = bn
-        bn.riserva = agent_data[1]
-        bn.hp = agent_data[2]
-        bn.stato = agent_data[3]
-        return bn
-    # Restore agents in NETWORTK
-    if uid[1] == Soglia.TYPE:
-        return Soglia(uid[0], uid[1], uid[2])
-    if uid[1] == Neuro.TYPE:
-        return Neuro(uid[0], uid[1], uid[2])
-    if uid[1] == Glia.TYPE:
-        return Glia(uid[0], uid[1], uid[2])
-
-
 class Soglia(core.Agent):
-    """
-        Aggiungere descrizione agente
-    """
 
     TYPE = 0
 
@@ -180,6 +128,7 @@ class Soglia(core.Agent):
         self.Env = Stato()
         self.flag = False
         
+
     def gather_local_b(self, env: Stato):
         self.Env.citochine_brain += env.citochine_brain
         #self.Env.MHC_attivo = env.MHC_attivo
@@ -194,6 +143,7 @@ class Soglia(core.Agent):
         self.Env.ratio_bn = env.ratio()
         self.flag = True 
         
+    
     def G_to_B(self):
         pass
 
@@ -212,15 +162,31 @@ class Soglia(core.Agent):
             self.flag = False  
 
 
+def crea_nodo(nid, agent_type, rank, **kwargs):
+    if agent_type == 0:
+         return Soglia(nid, agent_type, rank)
+    if agent_type == 3:
+         return Neuro(nid, agent_type, rank)
+    if agent_type == 4:
+         return GliaTest(nid, agent_type, rank)
+
+def restore_nodo(agent_data):
+    uid = agent_data[0]
+    if  uid[1] == 0:
+            return Soglia(uid[0], uid[1], uid[2])
+    if  uid[1] == 3:
+            return Neuro(uid[0], uid[1], uid[2])
+    if  uid[1] == 4:
+            return GliaTest(uid[0], uid[1], uid[2])
+    
+
 class Batterio_Benefico(core.Agent):
-    """
-        Batterio benefico nell'intestino, produce sostanze benefiche per l'organismo
-    """
     
     TYPE = 1
 
-    def __init__(self, local_id: int, rank: int):
+    def __init__(self, local_id: int, rank: int, pt: dpt):
         super().__init__(id=local_id, type=Batterio_Benefico.TYPE, rank=rank)
+        self.pt = pt
         self.riserva = 10
         self.hp = 10
         self.stato="vivo"
@@ -243,7 +209,7 @@ class Batterio_Benefico(core.Agent):
             return 0
 
     def duplica(self) -> bool:
-        """duplica se stesso"""
+        """se stesso"""
         if self.riserva >= 10:
             self.riserva = self.riserva - 10
             return True
@@ -251,7 +217,7 @@ class Batterio_Benefico(core.Agent):
             return False
 
     def consuma(self):
-        """consuma risorse per sopravvivere"""
+        """per sopravvivere"""
         if self.hp < 1:
             self.stato = "morto"
         else:
@@ -262,17 +228,16 @@ class Batterio_Benefico(core.Agent):
 
 
     def save(self) -> Tuple:
-        return (self.uid, self.riserva, self.hp, self.stato)
+        #print("SAVE 1")
+        return (self.uid, self.pt.coordinates, self.riserva, self.hp, self.stato)
     
 class Batterio_Nocivo(core.Agent):
-    """
-        Batterio nocivo nell'intestino, produce sostanze dannose per l'organismo
-    """
     
     TYPE = 2
 
-    def __init__(self, local_id: int, rank: int):
+    def __init__(self, local_id: int, rank: int, pt: dpt):
         super().__init__(id=local_id, type=Batterio_Nocivo.TYPE, rank=rank)
+        self.pt = pt
         self.riserva = 10
         self.hp = 10
         self.stato="vivo"
@@ -295,7 +260,7 @@ class Batterio_Nocivo(core.Agent):
             return 0
 
     def duplica(self) -> bool:
-        """duplica se stesso"""
+        """se stesso"""
         if self.riserva >= 10:
             self.riserva = self.riserva - 10
             return True
@@ -303,7 +268,7 @@ class Batterio_Nocivo(core.Agent):
             return False
 
     def consuma(self):
-        """consuma risorse per sopravvivere"""
+        """per sopravvivere"""
         if self.hp < 1:
             self.stato = "morto"
         else:
@@ -314,7 +279,7 @@ class Batterio_Nocivo(core.Agent):
         
 
     def save(self) -> Tuple:
-        return (self.uid, self.riserva, self.hp, self.stato)
+        return (self.uid, self.pt.coordinates, self.riserva, self.hp, self.stato)
 
 
 class Neuro(core.Agent):
@@ -328,7 +293,6 @@ class Neuro(core.Agent):
         self.accumolo_beta = 0
         self.accumolo_alfa = 0
         self.patologia = 0
-        self.cluster = False
         self.flag = False
         self.rng = np.random.default_rng()
         self.stato = "non_compromesso"
@@ -339,7 +303,11 @@ class Neuro(core.Agent):
         # azioni interne
         self.check()
         self.prod()
+        self.comunica()
         self.autofagia()
+        stato.alfa_sin += self.prod_alfa()
+        stato.beta_a += self.prod_beta()
+        stato.tau += self.prod_tau()
         # info
         self.flag = True
 
@@ -384,31 +352,32 @@ class Neuro(core.Agent):
         else:
             self.patologia += max(tripla[0], tripla[1], tripla[2])
 
-    def comunica(self, altro):
-        if altro.uid[1] == 3:
-            self.to_neuro(altro)
-        if altro.uid[1] == 4:
-            self.to_glia(altro)
-        self.flag = True
-        pass
+    def comunica(self):
+        count = 0
+        for ngh in model.neural_net.graph.neighbors(self):
+            count += 1
+            if ngh.uid[1] == 3:
+                self.to_neuro(ngh,count)
+            if ngh.uid[1] == 4:
+                self.to_glia(ngh,count)
+        
 
-    def to_glia(self, glia):
-        #self.patologia -= glia.fagocitosi(self.patologia)
-        pass
+    def to_glia(self, glia,count):
+        self.patologia -= glia.fagocitosi(self.patologia/count)
 
-    def to_neuro(self, neuro):
-        #neuro.riceve(neuro.patologia)
-        pass
+    def to_neuro(self, neuro,count):
+        neuro.riceve(neuro.patologia,count)
 
-    def riceve(self, patologia):
-        self.patologia += (patologia/2)
+    def riceve(self, patologia,count):
+        self.patologia += (patologia/count)
 
     def save(self) -> Tuple:
-        return (self.uid,self.eta,self.accumulo_tau,
+        return (self.uid,
+        self.eta,
+        self.accumulo_tau,
         self.accumolo_beta,
         self.accumolo_alfa,
         self.patologia,
-        self.cluster,
         self.flag,
         self.stato)
     
@@ -416,7 +385,6 @@ class Neuro(core.Agent):
         accumolo_beta,
         accumolo_alfa,
         patologia,
-        cluster,
         flag,
         stato):   
         if flag:
@@ -425,32 +393,77 @@ class Neuro(core.Agent):
             self.accumolo_alfa = accumolo_alfa
             self.accumolo_beta = accumolo_beta
             self.patologia = patologia
-            self.cluster = cluster
             self.stato = stato
             self.flag = False
 
 
-class Glia(core.Agent):
-    """ TREM 1 e TREM 2 sono le stesso recettore ma con una portata diversa in base allo stato,
-        altri stati DAM-1 e DAM-2, con DAM-2 irreversibile
-    """
+
+class GliaTest(core.Agent):
+
     TYPE = 4
 
-    #Capire quali parametri ci servono
     def __init__(self, nid: int, agent_type: int, rank: int):
         super().__init__(nid, agent_type, rank)
-        #self.da_fagocitare = 0
-        #self.da_autofagocitare = 0
-        #self.citochine_recepite = 0
+        self.da_fagocitare = 0 # capacità di digerire elementi esterni.
+        self.da_autofagocitare = 0 # capacità di diferire elementi inteni.
+        self.citochine_recepite = 0 # influiscono sull'autofagia
         self.stato= "omeostasi"    
-        #self.flag = False
+        self.flag = False
+
+    def step(self, stato:Stato):
+        
+        if self.stato == "omeostasi":
+            self.da_fagocitare = 0
+            self.da_autofagocitare = 0
+
+        if self.stato == "DAM1":
+            self.da_autofagocitare = 0
+            self.da_fagocitare -= (self.da_fagocitare*2)/3
+        
+        if self.stato == "DAM2":
+            self.da_autofagocitare += stato.eta / 2
+            self.da_fagocitare -= (self.da_fagocitare/3)
+            stato.citochine_brain += stato.citochine_brain + 1
+        
+
+                   
+    def fagocitosi(self, patogeno):
+        self.da_fagocitare += patogeno
+        return patogeno
+
+    def save(self):
+        return(self.uid,self.stato,self.da_autofagocitare, self.da_fagocitare, self.citochine_recepite, self.flag)
+    
+    def update(self, stato, da_a, da_f, cit, flag):
+        if flag:
+            self.stato=stato,
+            self.da_autofagocitare = da_a,
+            self.da_fagocitare = da_f,
+            self.citochine_recepite=cit,
+            self.flag = False
+
+
+class Glia(core.Agent):
+    """altri stati DAM-1 e DAM-2, con DAM-2 irreversibile"""
+    """TREM 1 e TREM 2 sono le stesso recettore ma con una portata diversa in base allo stato"""
+    TYPE = 4
+
+    def __init__(self, nid: int, agent_type: int, rank: int):
+        super().__init__(nid, agent_type, rank)
+        self.da_fagocitare = 0 # capacità di digerire elementi esterni.
+
+        self.da_autofagocitare = 0 # capacità di diferire elementi inteni.
+
+        self.citochine_recepite = 0 # influiscono sull'autofagia
+
+        self.stato= "omeostasi"    
+        self.flag = False
     
     def step(self, stato: Stato):
         # se è in stato attivo dovrebbe rilasciare citochine
         #stato.citochine_brain += self.rilascio_citochine()
-        self.fagocitosi()
-        self.autofagocitosi(stato)
-
+        #self.fagocitosi()
+        #self.autofagocitosi(stato)
         pass
             
     def to_DAM_1(self):
@@ -461,6 +474,7 @@ class Glia(core.Agent):
     
     def to_Homo(self):
         self.stato = "omeostati"
+
     
     def rilascio_citochine(self, n : Neuro):
         pass
@@ -468,7 +482,7 @@ class Glia(core.Agent):
     def rilascio_citochine(self, g: 'Glia'):
         pass
 
-    def autofagocitosi(self, stato:Stato):   
+    def autofagocitosi(self):
         pass
 
     def fagocitosi(self):
@@ -482,10 +496,10 @@ class Glia(core.Agent):
             self.stato = self.to_DAM_2()
         if self.stato == "DAM2":
             pass
+        pass
+
 
     def save(self) -> Tuple:
-        return(self.uid, self.stato)
-        print("save usato")
         return (self.uid,
         self.da_fagocitare,
         self.da_autofagocitare,
@@ -503,6 +517,7 @@ class Glia(core.Agent):
             self.flag = False
 
 
+
 class Model:
 
     def __init__(self, comm: MPI.Intracomm, params: Dict):
@@ -511,6 +526,7 @@ class Model:
         self.context = ctx.SharedContext(comm)
         self.rank = self.comm.Get_rank()
 
+
         # create the schedule
         self.runner = schedule.init_schedule_runner(comm)
         self.runner.schedule_repeating_event(1, 1, self.step)
@@ -518,7 +534,6 @@ class Model:
 
         self.tick = 0
 
-        #Inizializza le due network
         fpath = params['network_file']
         read_network(fpath, self.context, crea_nodo, restore_nodo)
         self.net = self.context.get_projection('int_net')
@@ -527,10 +542,9 @@ class Model:
         read_network(fpath, self.context, crea_nodo, restore_nodo)
         self.neural_net = self.context.get_projection('neural_net')
 
-        #Inizializza griglia
         box = space.BoundingBox(0, params['world.width'], 0, params['world.height'], 0, 0)
         self.grid = space.SharedGrid(name='grid', bounds=box, borders=space.BorderType.Sticky,
-                                     occupancy=space.OccupancyType.Single, buffer_size=1, comm=comm)
+                                     occupancy=space.OccupancyType.Single, buffer_size=0, comm=comm)
         self.context.add_projection(self.grid)
         self.ngh_finder = GridNghFinder(0, 0, box.xextent, box.yextent)
         
@@ -541,13 +555,11 @@ class Model:
         self.nutrimento_benefico = params['nutrimento.benefico']
         self.nutrimento_nocivo = params['nutrimento.nocivo']
 
-        # Aggiungi i due tipi di batteri ad ogni rank della griglia
-        # TODO numero di rank diversi cambiano il numero totale degli agenti? va bene questa cosa?
         for i in range(params['benefico.count']):
             # get a random x,y location in the grid
             pt = self.grid.get_random_local_pt(rng)
             # create and add the walker to the context
-            b = Batterio_Benefico(i, self.rank)
+            b = Batterio_Benefico(i, self.rank, pt)
             self.context.add(b)
             self.grid.move(b, pt)
             self.count_b += 1
@@ -555,88 +567,92 @@ class Model:
             # get a random x,y location in the grid
             pt = self.grid.get_random_local_pt(rng)
             # create and add the walker to the context
-            b = Batterio_Nocivo(i, self.rank)
+            b = Batterio_Nocivo(i, self.rank, pt)
             self.context.add(b)
             self.grid.move(b, pt)
             self.count_n += 1
 
-                        
-    def step(self):
+
+
+
+    def step00(self):
         #self.terminal()
         #self.context.synchronize(restore_nodo)
-        # DEBUG
         if self.rank == 0:
-            for i in self.context.agents(agent_type = Soglia.TYPE):
+            for i in self.context.agents(agent_type=0):
+                print("agente", i)
                 for ii in self.net.graph.neighbors(i):
-                    print(ii)
-            for i in self.context.agents(agent_type = Neuro.TYPE):
+                    print("vicini",ii)
+            for i in self.context.agents(agent_type=3):
+                print("agente",i)
                 for ii in self.neural_net.graph.neighbors(i):
-                    print(ii)
-            for i in self.context.agents(agent_type = Glia.TYPE):
+                    print("vicini",ii)
+            for i in self.context.agents(agent_type=4):
+                print("agente", i)
                 for ii in self.neural_net.graph.neighbors(i):
-                    print(ii)
+                    print("vicini",ii)
         self.step_00()
             
 
-    def step_00(self):
+    def step(self):
         self.tick += 1
 
         stato = Stato()
         stato.tick = self.tick
 
-        for agent in self.context.agents(agent_type = Soglia.TYPE):
+        for agent in self.context.agents(agent_type=0):
             if agent.uid[2] == self.rank:
                 temp = self.gut_step(stato)
                 agent.gather_local_g(temp)
-                #temp = self.brain_step(stato)
-                #agent.gather_local_b(temp)
+                temp = self.brain_step(stato)
+                agent.gather_local_b(temp)
+                print(temp)
 
         self.context.synchronize(restore_nodo)
 
-        for nodo in self.context.agents(agent_type = Soglia.TYPE): # TODO perchè dopo il synchronize?
+        for nodo in self.context.agents(agent_type=0):
                 if nodo.uid[2] == self.rank:
                     for i in self.net.graph.neighbors(nodo):
                         nodo.Env.prodotto_b += i.Env.prodotto_b
-                        nodo.Env.prodotto_n += i.Env.prodotto_n 
+                        nodo.Env.prodotto_n += i.Env.prodotto_n
+                        nodo.Env.citochine_gut += i.Env.citochine_gut
+                        nodo.Env.citochine_brain += i.Env.citochine_brain
+                        nodo.Env.alfa_sin += i.Env.alfa_sin
+                        nodo.Env.beta_a += i.Env.beta_a
+                        nodo.Env.tau += i.Env.tau
+        
+        
+                        
 
-        # DEBUG (TODO rimettere prima del push)
-        for nodo in self.context.agents(agent_type=0):
-            if nodo.uid[2] == 0:
-                pass #TODO rimettere prima del push
-                #print(nodo, nodo.Env) 
 
-        self.terminal()
+
+        #self.terminal()
+
 
 
     def start(self):
         self.runner.execute()
     
 
-    # DEBUG
+
     def terminal(self):
         """alla fine va eliminato"""
         if self.rank == 0:
             print("benefico ",self.rank,self.nutrimento_benefico)
             print("novico " , self.rank,self.nutrimento_nocivo)
             for b in self.context.agents():
-                if b.uid[1] == Batterio_Benefico.TYPE or b.uid[1] == Batterio_Nocivo.TYPE:
-                    pt = model.grid.get_location(b)
-                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, pt))
-                if b.uid[1] == Neuro.TYPE or b.uid[1] == Glia.TYPE:
+                if b.uid[1] == 1 or b.uid[1] == 2:
+                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
+                if b.uid[1] == 3 or b.uid[1] == 4:
                     print("Rank {} agente {} {} ".format(self.rank, b , b.stato))
-                if b.uid[1] == Soglia.TYPE:
+                if b.uid[1] == 0:
                     print("Rank {} agente {} ".format(self.rank, b.uid))
             
 
     def brain_step(self, stato:Stato) -> Stato:
         for e in self.neural_net.graph:
-            print("rank", self.rank, e)
-            if e.uid[2] == self.rank and (e.uid[1] == Neuro.TYPE or e.uid[1] == Glia.TYPE):
+            if e.uid[2] == self.rank and (e.uid[1] == Neuro.TYPE or e.uid[1] == GliaTest.TYPE):
                 e.step(stato)
-                for ee in self.neural_net.graph.neighbors(e):
-                    if ee.uid[2] == self.rank:
-                        #e.comunica(ee)
-                        pass
         return stato
 
     def gut_step(self,stato:Stato)-> Stato:
@@ -648,15 +664,14 @@ class Model:
                 stato.prodotto_b += b.produci()              
                 if b.duplica():
                     flag = True
-                    pt = model.grid.get_location(b)
-                    nghs = self.ngh_finder.find(pt.x, pt.y)
+                    nghs = self.ngh_finder.find(b.pt.x, b.pt.y)
                     for ngh in nghs:                
                         at = dpt(0,0,0)
                         at._reset_from_array(ngh)
                         a = self.grid.get_agent(at) 
                         if a == None and at.x >= local_b.xmin and at.x < local_b.xmin + local_b.xextent and at.y >= local_b.ymin and at.y < local_b.ymin + local_b.yextent:
                             self.count_b += 1
-                            new_b = Batterio_Benefico(self.count_b, self.rank)
+                            new_b = Batterio_Benefico(self.count_b, self.rank, at)
                             self.context.add(new_b)
                             self.grid.move(new_b, at)                          
                             flag = False
@@ -668,15 +683,14 @@ class Model:
                 stato.prodotto_n += b.produci()
                 if b.duplica():
                     flag = True
-                    pt = model.grid.get_location(b)
-                    nghs = self.ngh_finder.find(pt.x, pt.y)
+                    nghs = self.ngh_finder.find(b.pt.x, b.pt.y)
                     for ngh in nghs:                
                         at = dpt(0,0,0)
                         at._reset_from_array(ngh)
                         a = self.grid.get_agent(at) 
                         if a == None and at.x >= local_b.xmin and at.x < local_b.xmin + local_b.xextent and at.y >= local_b.ymin and at.y < local_b.ymin + local_b.yextent:
                             self.count_n += 1
-                            new_b = Batterio_Nocivo(self.count_n, self.rank)
+                            new_b = Batterio_Nocivo(self.count_n, self.rank, at)
                             self.context.add(new_b)
                             self.grid.move(new_b, at)                       
                             flag = False
