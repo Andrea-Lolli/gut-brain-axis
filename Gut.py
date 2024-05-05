@@ -417,10 +417,18 @@ class GliaTest(core.Agent):
     def step(self, stato:Stato):
         
         """
-        
-        le citochine cumolate per rank, influiscono sulle citochine recepite
-        tre stati, tre azioni.
-        In omeostasi 
+
+        Le citochine cumolate per i vari rank vengono redistribuite e presen in esame per verificare
+        lo stato interno del microglia. 
+        Iinfluiscono sulle citochine recepite, all'interno del cervello anche le citochine provenienti dall'intestino.
+        Tre stati: 
+        In omeostasi rimuove ogni elemento passato azzerando il proprio contatore.
+        Il passaggio allo stato successivo mette in relazione le citochine recepite, la quantità non ancora fagocitata e gli scarti interni.
+        In DAM1 (Disease-Associated Microglia) primo stato delle malattie neurodegenerative, il glia, può rimuovere una parte 
+        della "patologia" esterna e accumulare naturalmente le proprie scorie.
+
+        In DAM2,
+
         """
 
         self.citochine_recepite += stato.citochine_gut
@@ -437,18 +445,18 @@ class GliaTest(core.Agent):
         if self.stato == "DAM1":
             self.da_autofagocitare = np.random.default_rng().exponential(scale=1/ stato.eta) # giusto
             self.da_fagocitare -= (self.da_fagocitare) / stato.eta
-            #self.citochine_recepite = np.random.default_rng().exponential(scale=1/ stato.eta)
-            if  self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare >= params['soglia_citochine'] :
-                self.stato = "DAM2"
-                stato.infiammazione_local_b = True
-                stato.citochine_brain += 1
-                self.flag = True
-                return stato    
-               
+
+        if self.stato == "DAM1" and  (self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare >= params['soglia_citochine']) :
+            self.stato = "DAM2"
+            stato.infiammazione_local_b = True
+            self.flag = True
+            return stato    
+
+        # ipotesti modello. NB è diversa dall'ipotesi di modello.
         if self.stato == "DAM2":
             self.da_autofagocitare += np.random.default_rng().exponential(scale=1/ stato.eta) * stato.citochine_brain
             self.da_fagocitare -= (self.da_fagocitare/3)
-            #stato.citochine_brain += 1 #self.da_fagocitare
+            stato.citochine_brain += self.da_autofagocitare #self.da_fagocitare
             stato.infiammazione_local_b = True
             self.flag = True
             return stato
@@ -466,7 +474,7 @@ class GliaTest(core.Agent):
             self.stato=stato,
             self.da_autofagocitare = da_a,
             self.da_fagocitare = da_f,
-            self.citochine_recepite= cit,
+            self.citochine_recepite = cit,
             self.flag = False
 
 
@@ -534,8 +542,6 @@ class Model:
         stato.tick = self.tick
 
         for agent in self.context.agents(agent_type=0):
-            
-            #successvio scambio di messaggi in base alla propria località?
 
             if agent.uid[2] == self.rank:
                 
@@ -551,11 +557,10 @@ class Model:
 
         #self.terminal()
         self.context.synchronize(lambda x : x)
-        #self.terminal()
+        #sself.terminal()
 
         # prendo i nodi dell'interfaccia e gli aggrego le informazioni tramite una media. Lasciando inalterate le flag.
         # e non ho bisogno del ynch in questo momento
-        
         
         for nodo in self.net.graph:
                 
@@ -573,12 +578,18 @@ class Model:
                         nodo.Env.beta_a += i.Env.beta_a
                         nodo.Env.tau += i.Env.tau
 
+
+                    #normalizzo con attuale - min(attuale) / maxssimo attuale.  
+                    #nodo.Env.citochine_brain = (nodo.Env.citochine_brain - (nodo.Env.citochine_brain/ self.net.graph.size() )) / (nodo.Env.citochine_brain + 1)
+                        
+                    #oppure attuale / attuale + 1
+                    nodo.Env.citochine_brain =nodo.Env.citochine_brain / (nodo.Env.citochine_brain + 1)
                     nodo.Env.infiammazione_local_b = stato.infiammazione_local_b
                     nodo.Env.infiammazione_local_g = stato.infiammazione_local_g
                     nodo.Env.infiammazione_local_bg = stato.infiammazione_local_bg
         
         
-        self.context.synchronize(lambda x:x)
+        self.context.synchronize(lambda x : x)
         
         self.terminal()
 
@@ -610,6 +621,64 @@ class Model:
                     print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
                     for bb in self.net.graph.neighbors(b):
                         print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
+        if self.rank == 1:
+            print("benefico ",self.rank,self.nutrimento_benefico)
+            print("novico " , self.rank,self.nutrimento_nocivo)
+            for b in self.context.agents():
+                if b.uid[1] == 1 or b.uid[1] == 2:
+                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
+                if b.uid[1] == 3:
+                     print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, b , b.eta, b.stato, b.accumolo_alfa, b.accumolo_beta, b.accumulo_tau, b.patologia))
+                     for bb in self.neural_net.graph.neighbors(b):
+                        if bb.uid[1] == 3:
+                            print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, bb , bb.eta, bb.stato, bb.accumolo_alfa, bb.accumolo_beta, bb.accumulo_tau, bb.patologia))
+                if b.uid[1] == 4:
+                    print("Rank {} agente {} {} {} {} recepite: {}".format(self.rank, b , b.stato, b.da_autofagocitare, b.da_fagocitare, b.citochine_recepite))
+                    for bb in self.neural_net.graph.neighbors(b):
+                        print("Rank {} agente {} {}".format(self.rank,bb, bb.stato))
+                if b.uid[1] == 0:
+                    print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
+                    for bb in self.net.graph.neighbors(b):
+                        print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
+        if self.rank == 2:
+            print("benefico ",self.rank,self.nutrimento_benefico)
+            print("novico " , self.rank,self.nutrimento_nocivo)
+            for b in self.context.agents():
+                if b.uid[1] == 1 or b.uid[1] == 2:
+                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
+                if b.uid[1] == 3:
+                     print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, b , b.eta, b.stato, b.accumolo_alfa, b.accumolo_beta, b.accumulo_tau, b.patologia))
+                     for bb in self.neural_net.graph.neighbors(b):
+                        if bb.uid[1] == 3:
+                            print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, bb , bb.eta, bb.stato, bb.accumolo_alfa, bb.accumolo_beta, bb.accumulo_tau, bb.patologia))
+                if b.uid[1] == 4:
+                    print("Rank {} agente {} {} {} {} recepite: {}".format(self.rank, b , b.stato, b.da_autofagocitare, b.da_fagocitare, b.citochine_recepite))
+                    for bb in self.neural_net.graph.neighbors(b):
+                        print("Rank {} agente {} {}".format(self.rank,bb, bb.stato))
+                if b.uid[1] == 0:
+                    print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
+                    for bb in self.net.graph.neighbors(b):
+                        print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
+        if self.rank == 3:
+            print("benefico ",self.rank,self.nutrimento_benefico)
+            print("novico " , self.rank,self.nutrimento_nocivo)
+            for b in self.context.agents():
+                if b.uid[1] == 1 or b.uid[1] == 2:
+                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
+                if b.uid[1] == 3:
+                     print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, b , b.eta, b.stato, b.accumolo_alfa, b.accumolo_beta, b.accumulo_tau, b.patologia))
+                     for bb in self.neural_net.graph.neighbors(b):
+                        if bb.uid[1] == 3:
+                            print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, bb , bb.eta, bb.stato, bb.accumolo_alfa, bb.accumolo_beta, bb.accumulo_tau, bb.patologia))
+                if b.uid[1] == 4:
+                    print("Rank {} agente {} {} {} {} recepite: {}".format(self.rank, b , b.stato, b.da_autofagocitare, b.da_fagocitare, b.citochine_recepite))
+                    for bb in self.neural_net.graph.neighbors(b):
+                        print("Rank {} agente {} {}".format(self.rank,bb, bb.stato))
+                if b.uid[1] == 0:
+                    print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
+                    for bb in self.net.graph.neighbors(b):
+                        print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
+        
             
 
     def brain_step(self, stato:Stato) -> Stato:
