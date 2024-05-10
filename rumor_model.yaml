@@ -1,9 +1,12 @@
 network_file: Int_network.txt
 neural_file: neural_net.txt
-stop.at: 1
+stop.at: 70
 world.width: 8
 world.height: 8
 benefico.count: 1
 nocivo.count: 1
-nutrimento.nocivo: 500
+nutrimento.nocivo: 2000
 nutrimento.benefico: 500
+soglia_citochine: 1
+init_degenerazione: 45
+fattore.di.scala :  10

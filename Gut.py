@@ -70,6 +70,7 @@ spec = [
 
 @jitclass(spec)
 class GridNghFinder:
+    """recupera i vicini da un dato punto della griglia"""
 
     def __init__(self, xmin, ymin, xmax, ymax):
         self.mo = np.array([-1, 0, 1, -1, 0, 1, -1, 0, 1], dtype=np.int32)
@@ -97,7 +98,21 @@ class GridNghFinder:
 @dataclass(slots=True)
 class Stato:
     """
+
     Classe che sintetizza lo stato dei due sistemi connessi.
+    Ipoteticamente un plausibile sistemi vascolare.
+    tick, tick di sistema
+    eta, età di un individuo predisposto verso una malattia degenerativa
+    nutrienti_b, nutrienti per un plausibile batterio benefico
+    nutrienti_n, nutrienti per un plausibile batterio nocivo
+    ratio_bn, sintetizza il rapporto tra benefico e nocivo
+    prodotto_n, metabolita nociva
+    prodotto_b, metabolita benefico
+    citochine_gut, livello delle citochine e determina l'infiammazione locale
+    citochine_brain, livello delle citochine e determina l'infiammazione locale
+    alfa, beta, tau, determinate il tipo di neurodegenerazione
+    infiammazione_locale_, flag di riferimento
+
     """
     tick: int = 0
     eta : int = 0
@@ -113,17 +128,36 @@ class Stato:
     tau: np.float16 = 0
     infiammazione_local_g : bool = False
     infiammazione_local_b: bool = False
-    infiammazione_local_bg: bool = False
-    err : bool = False
+    #infiammazione_local_bg: bool = False
     def ratio(self) -> np.float16:
+        """
+        
+        rapporto tra i batteri, benefici e non, a livello locale
+
+        """
         self.ratio_bn = (self.prodotto_n) / (self.prodotto_b+1)
         return self.ratio_bn
     def cit_gut(self) -> np.float16 :
-        self.citochine_gut = np.random.default_rng().exponential(scale=1/self.eta) *self.ratio()
+        """
+        
+        aumento base della produzione di citochine a livello intestinale, proporzionale al rapporto tra i tipi di batteri
+        
+        """
+        self.citochine_gut = np.random.default_rng().exponential(scale=1/self.eta) * self.ratio()
         return self.citochine_gut
 
 
 class Soglia(core.Agent):
+
+    """
+
+    Agente che vigila sull'esecuzione dell'elaborazione.
+    Punto di contatto tra due sistemi, definibile come interfaccia, regola il comportamento locale e sintetizza 
+    lo stato dei due sistemi comunicanti
+    Stato, @dataclass
+    flag, update ghost
+
+    """
 
     TYPE = 0
 
@@ -134,6 +168,11 @@ class Soglia(core.Agent):
         
 
     def gather_local_b(self, env: Stato):
+        """
+        
+        Aggiorna il punto di contatto del sistema "brain", tramite assegnamenti, al tempo t
+
+        """
         self.Env.tick = env.tick
         self.Env.eta = env.eta
         self.Env.citochine_brain = env.citochine_brain
@@ -143,6 +182,11 @@ class Soglia(core.Agent):
         self.flag = True
 
     def gather_local_g(self, env: Stato):
+        """
+        
+        Aggiorna il punto di contatto del sistema "gut", tramite assegnamenti, al tempo t 
+
+        """
         self.Env.citochine_gut = env.citochine_gut
         self.Env.nutrienti_b = env.nutrienti_b
         self.Env.nutrienti_n = env.nutrienti_n
@@ -150,14 +194,29 @@ class Soglia(core.Agent):
         self.Env.prodotto_n = env.prodotto_n
         self.Env.ratio_bn = env.ratio()
         self.Env.citochine_gut = env.cit_gut()
-        self.flag = True 
-        
+        self.flag = True
     
-    def G_to_B(self):
-        pass
 
-    def B_to_G(self):
-        pass
+    def comportamento_locale(self):
+        """
+
+        Componenete locale, combinazione di Soglia locale , sotto-sistema locale "brain" (una parte della neural net)
+        e sotto-sistema local "gut" (una parte della griglia).
+        Per comportamento locale si intende la gestione dei casi in cui una delle parti del comportamento locale risulti 
+        sbilanciata verso uno stato infiammatorio. Saranno le quantità dei metaboliti benefici e nocivi a determinare l'intensità del 
+        bilanciamento.
+
+        """
+        if (self.Env.infiammazione_local_g == False) and (self.Env.infiammazione_local_b == True):
+            self.Env.citochine_brain -= (self.Env.prodotto_b * self.Env.citochine_brain)/ params['fattore.di.scala']
+            self.Env.citochine_gut += (self.Env.prodotto_n * self.Env.citochine_brain)/ params['fattore.di.scala']
+            
+        if (self.Env.infiammazione_local_g == True ) and  (self.Env.infiammazione_local_b == False):
+            self.Env.citochine_brain += (self.Env.prodotto_n * self.Env.citochine_gut)/ params['fattore.di.scala']
+            self.Env.citochine_gut -= (self.Env.prodotto_b * self.Env.citochine_gut)/ params['fattore.di.scala']
+            
+            
+    
 
     def log(self):
         pass
@@ -166,12 +225,22 @@ class Soglia(core.Agent):
         return (self.uid, self.Env, self.flag)
     
     def update(self, env, flag):
+        """
+        
+        Update per ghost
+
+        """
         if flag:
             self.Env = env
             self.flag = False  
 
 
 def crea_nodo(nid, agent_type, rank, **kwargs):
+    """
+    
+    Autoesplicativo, repast4py
+
+    """
     if agent_type == 0:
          return Soglia(nid, agent_type, rank)
     if agent_type == 3:
@@ -180,7 +249,11 @@ def crea_nodo(nid, agent_type, rank, **kwargs):
          return GliaTest(nid, agent_type, rank)
 
 def restore_nodo(agent_data):
-    #print(agent_data)
+    """
+
+    Autoesplicativo repast4py
+
+    """
     uid = agent_data[0]
     if  uid[1] == 0:
             return Soglia(uid[0], uid[1], uid[2])
@@ -238,7 +311,6 @@ class Batterio_Benefico(core.Agent):
 
 
     def save(self) -> Tuple:
-        #print("SAVE 1")
         return (self.uid, self.pt.coordinates, self.riserva, self.hp, self.stato)
     
 class Batterio_Nocivo(core.Agent):
@@ -294,6 +366,13 @@ class Batterio_Nocivo(core.Agent):
 
 class Neuro(core.Agent):
 
+    """
+    Agente che rappresenta il neurone.
+    Produce, comunica e smaltisce.
+    In natura tutte e tre le possibili proteine sono prodotte dal neurone, durante la sua vita. 
+    Di conseguenza, c'è una possibilittà, proporzionale all'età di produrre una proteina patologica.
+    """
+
     TYPE = 3
 
     def __init__(self, nid: int, agent_type: int, rank: int):
@@ -307,9 +386,14 @@ class Neuro(core.Agent):
         self.stato = "non_compromesso"
     
     def step(self, stato: Stato):
-        self.eta = stato.eta
-        # azioni interno
         
+        """
+        Serie di azioni compiute dal neurone, a tick. 
+        Produce elementi, proteine.
+        Controlla il suo stato.
+        Comunica con i propri vicini - una glia - ....
+        """
+        self.eta = stato.eta
         self.prod()
         self.check()
         self.comunica()
@@ -368,6 +452,14 @@ class Neuro(core.Agent):
         for ngh in model.neural_net.graph.neighbors(self):
             if ngh.uid[1] == 4 :
                 self.to_glia(ngh)
+                # prelievo da ghost
+            if ngh.uid[1] == 3:
+                self.accumolo_alfa += ngh.prod_alfa() / params["fattore.di.scala"]
+                self.accumolo_beta += ngh.prod_beta() / params['fattore.di.scala']
+                self.accumulo_tau += ngh.prod_tau() /  params['fattore.di.scala']
+                self.patologia += ngh.prod_patologia() / params['fattore.di.scala']
+
+
         
     def to_glia(self, glia):
         to_delete = self.patologia / self.eta
@@ -415,7 +507,6 @@ class GliaTest(core.Agent):
         self.flag = False
 
     def step(self, stato:Stato):
-        
         """
 
         Le citochine cumolate per i vari rank vengono redistribuite e presen in esame per verificare
@@ -426,14 +517,12 @@ class GliaTest(core.Agent):
         Il passaggio allo stato successivo mette in relazione le citochine recepite, la quantità non ancora fagocitata e gli scarti interni.
         In DAM1 (Disease-Associated Microglia) primo stato delle malattie neurodegenerative, il glia, può rimuovere una parte 
         della "patologia" esterna e accumulare naturalmente le proprie scorie.
-
-        In DAM2,
+        In DAM2, il processo biologico spinge verso una situazione di infiammazione cronica.
 
         """
 
-        self.citochine_recepite += stato.citochine_gut
         self.citochine_recepite += stato.citochine_brain
-        
+        self.citochine_recepite += stato.citochine_gut
         
         if self.stato == "omeostasi":
             self.da_fagocitare = 0
@@ -446,21 +535,27 @@ class GliaTest(core.Agent):
             self.da_autofagocitare = np.random.default_rng().exponential(scale=1/ stato.eta) # giusto
             self.da_fagocitare -= (self.da_fagocitare) / stato.eta
 
+        if stato.infiammazione_local_b == True:
+            self.stato = "DAM2"
+        
         if self.stato == "DAM1" and  (self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare >= params['soglia_citochine']) :
             self.stato = "DAM2"
             stato.infiammazione_local_b = True
             self.flag = True
             return stato    
-
+        
         # ipotesti modello. NB è diversa dall'ipotesi di modello.
-        if self.stato == "DAM2":
+        if self.stato == "DAM2" and (self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare >= params['soglia_citochine'])  :
             self.da_autofagocitare += np.random.default_rng().exponential(scale=1/ stato.eta) * stato.citochine_brain
             self.da_fagocitare -= (self.da_fagocitare/3)
-            stato.citochine_brain += self.da_autofagocitare #self.da_fagocitare
+            stato.citochine_brain += self.da_autofagocitare
             stato.infiammazione_local_b = True
             self.flag = True
             return stato
-        
+
+
+
+
                    
     def fagocitosi(self, patogeno):
         self.da_fagocitare += patogeno 
@@ -491,6 +586,7 @@ class Model:
         # create the schedule
         self.runner = schedule.init_schedule_runner(comm)
         self.runner.schedule_repeating_event(1, 1, self.step)
+        self.runner.schedule.schedule_repeating_event(1,2, self.clear)
         self.runner.schedule_stop(params['stop.at'])
 
         self.tick = 0
@@ -513,21 +609,15 @@ class Model:
         self.count_n = 0
         rng = repast4py.random.default_rng
         
-        self.nutrimento_benefico = params['nutrimento.benefico']
-        self.nutrimento_nocivo = params['nutrimento.nocivo']
 
         for i in range(params['benefico.count']):
-            # get a random x,y location in the grid
             pt = self.grid.get_random_local_pt(rng)
-            # create and add the walker to the context
             b = Batterio_Benefico(i, self.rank, pt)
             self.context.add(b)
             self.grid.move(b, pt)
             self.count_b += 1
         for i in range(params['nocivo.count']):
-            # get a random x,y location in the grid
             pt = self.grid.get_random_local_pt(rng)
-            # create and add the walker to the context
             b = Batterio_Nocivo(i, self.rank, pt)
             self.context.add(b)
             self.grid.move(b, pt)
@@ -541,14 +631,16 @@ class Model:
         stato.eta = self.tick
         stato.tick = self.tick
 
+        stato.nutrienti_b = params['nutrimento.benefico'] / stato.eta
+        stato.nutrienti_n = params['nutrimento.nocivo'] / stato.eta
+
+
         for agent in self.context.agents(agent_type=0):
 
             if agent.uid[2] == self.rank:
                 
                 stato.citochine_brain = (agent.Env.citochine_brain / self.net.graph.size())
                 stato.citochine_gut = (agent.Env.citochine_gut / self.net.graph.size())
-                stato.nutrienti_b = agent.Env.nutrienti_b
-                stato.nutrienti_b = agent.Env.nutrienti_n
 
                 temp = self.gut_step(stato)
                 agent.gather_local_g(temp)
@@ -558,9 +650,6 @@ class Model:
         #self.terminal()
         self.context.synchronize(lambda x : x)
         #sself.terminal()
-
-        # prendo i nodi dell'interfaccia e gli aggrego le informazioni tramite una media. Lasciando inalterate le flag.
-        # e non ho bisogno del ynch in questo momento
         
         for nodo in self.net.graph:
                 
@@ -579,32 +668,46 @@ class Model:
                         nodo.Env.tau += i.Env.tau
 
 
-                    #normalizzo con attuale - min(attuale) / maxssimo attuale.  
-                    #nodo.Env.citochine_brain = (nodo.Env.citochine_brain - (nodo.Env.citochine_brain/ self.net.graph.size() )) / (nodo.Env.citochine_brain + 1)
-                        
-                    #oppure attuale / attuale + 1
-                    nodo.Env.citochine_brain =nodo.Env.citochine_brain / (nodo.Env.citochine_brain + 1)
+                    
+                    nodo.Env.citochine_brain = nodo.Env.citochine_brain / (nodo.Env.citochine_brain + 1)
+                    nodo.Env.citochine_gut = nodo.Env.citochine_gut / (nodo.Env.citochine_gut + 1)
                     nodo.Env.infiammazione_local_b = stato.infiammazione_local_b
                     nodo.Env.infiammazione_local_g = stato.infiammazione_local_g
-                    nodo.Env.infiammazione_local_bg = stato.infiammazione_local_bg
-        
+                    #nodo.Env.infiammazione_local_bg = stato.infiammazione_local_bg
+
         
         self.context.synchronize(lambda x : x)
-        
-        self.terminal()
 
+        for nodo in self.net.graph:
+                
+            if nodo.uid[2] == self.rank and nodo.uid[1] == Soglia.TYPE:
+
+                nodo.comportamento_locale()
+        
+    
+            
+        self.terminal()
+        #fine metodo
 
 
 
     def start(self):
         self.runner.execute()
     
+    def clear(self):
+        roba_da_matti = []
+        for agent in self.context.agents():
+            if agent.uid[2] == self.rank and (agent.uid[1] == Batterio_Benefico.TYPE or agent.uid[1] == Batterio_Nocivo.TYPE) and agent.stato == "morto":
+                roba_da_matti.append(agent)   
+                
+        for i in roba_da_matti:
+            self.context.remove(i)
+
+    
 
     def terminal(self):
         """alla fine va eliminato"""
         if self.rank == 0:
-            print("benefico ",self.rank,self.nutrimento_benefico)
-            print("novico " , self.rank,self.nutrimento_nocivo)
             for b in self.context.agents():
                 if b.uid[1] == 1 or b.uid[1] == 2:
                     print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
@@ -621,63 +724,7 @@ class Model:
                     print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
                     for bb in self.net.graph.neighbors(b):
                         print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
-        if self.rank == 1:
-            print("benefico ",self.rank,self.nutrimento_benefico)
-            print("novico " , self.rank,self.nutrimento_nocivo)
-            for b in self.context.agents():
-                if b.uid[1] == 1 or b.uid[1] == 2:
-                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
-                if b.uid[1] == 3:
-                     print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, b , b.eta, b.stato, b.accumolo_alfa, b.accumolo_beta, b.accumulo_tau, b.patologia))
-                     for bb in self.neural_net.graph.neighbors(b):
-                        if bb.uid[1] == 3:
-                            print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, bb , bb.eta, bb.stato, bb.accumolo_alfa, bb.accumolo_beta, bb.accumulo_tau, bb.patologia))
-                if b.uid[1] == 4:
-                    print("Rank {} agente {} {} {} {} recepite: {}".format(self.rank, b , b.stato, b.da_autofagocitare, b.da_fagocitare, b.citochine_recepite))
-                    for bb in self.neural_net.graph.neighbors(b):
-                        print("Rank {} agente {} {}".format(self.rank,bb, bb.stato))
-                if b.uid[1] == 0:
-                    print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
-                    for bb in self.net.graph.neighbors(b):
-                        print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
-        if self.rank == 2:
-            print("benefico ",self.rank,self.nutrimento_benefico)
-            print("novico " , self.rank,self.nutrimento_nocivo)
-            for b in self.context.agents():
-                if b.uid[1] == 1 or b.uid[1] == 2:
-                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
-                if b.uid[1] == 3:
-                     print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, b , b.eta, b.stato, b.accumolo_alfa, b.accumolo_beta, b.accumulo_tau, b.patologia))
-                     for bb in self.neural_net.graph.neighbors(b):
-                        if bb.uid[1] == 3:
-                            print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, bb , bb.eta, bb.stato, bb.accumolo_alfa, bb.accumolo_beta, bb.accumulo_tau, bb.patologia))
-                if b.uid[1] == 4:
-                    print("Rank {} agente {} {} {} {} recepite: {}".format(self.rank, b , b.stato, b.da_autofagocitare, b.da_fagocitare, b.citochine_recepite))
-                    for bb in self.neural_net.graph.neighbors(b):
-                        print("Rank {} agente {} {}".format(self.rank,bb, bb.stato))
-                if b.uid[1] == 0:
-                    print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
-                    for bb in self.net.graph.neighbors(b):
-                        print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
-        if self.rank == 3:
-            print("benefico ",self.rank,self.nutrimento_benefico)
-            print("novico " , self.rank,self.nutrimento_nocivo)
-            for b in self.context.agents():
-                if b.uid[1] == 1 or b.uid[1] == 2:
-                    print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
-                if b.uid[1] == 3:
-                     print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, b , b.eta, b.stato, b.accumolo_alfa, b.accumolo_beta, b.accumulo_tau, b.patologia))
-                     for bb in self.neural_net.graph.neighbors(b):
-                        if bb.uid[1] == 3:
-                            print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, bb , bb.eta, bb.stato, bb.accumolo_alfa, bb.accumolo_beta, bb.accumulo_tau, bb.patologia))
-                if b.uid[1] == 4:
-                    print("Rank {} agente {} {} {} {} recepite: {}".format(self.rank, b , b.stato, b.da_autofagocitare, b.da_fagocitare, b.citochine_recepite))
-                    for bb in self.neural_net.graph.neighbors(b):
-                        print("Rank {} agente {} {}".format(self.rank,bb, bb.stato))
-                if b.uid[1] == 0:
-                    print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
-                    for bb in self.net.graph.neighbors(b):
-                        print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
+        
         
             
 
@@ -691,7 +738,8 @@ class Model:
         local_b = self.grid.get_local_bounds()
         for b in self.context.agents(shuffle=True):
             if b.uid[1] == Batterio_Benefico.TYPE and b.stato=="vivo" :
-                self.nutrimento_benefico = b.assorbe(self.nutrimento_benefico)                
+                #self.nutrimento_benefico = b.assorbe(self.nutrimento_benefico)                
+                stato.nutrienti_b = b.assorbe(stato.nutrienti_b)
                 b.consuma()               
                 stato.prodotto_b += b.produci() #accumula              
                 if b.duplica():
@@ -708,9 +756,10 @@ class Model:
                             self.grid.move(new_b, at)                          
                             flag = False
                         if flag == False:
-                            break  
+                            break
             if b.uid[1] == Batterio_Nocivo.TYPE and b.stato=="vivo":
-                self.nutrimento_nocivo = b.assorbe(self.nutrimento_nocivo)
+                #self.nutrimento_nocivo = b.assorbe(self.nutrimento_nocivo)
+                stato.nutrienti_n= b.assorbe(stato.nutrienti_n)
                 b.consuma()
                 stato.prodotto_n += b.produci() #accumula
                 if b.duplica():
@@ -728,6 +777,15 @@ class Model:
                             flag = False
                         if flag == False:
                             break
+        
+        if stato.ratio() * stato.citochine_gut> 1:
+            stato.infiammazione_local_g = True
+        
+        # penalità infiammazione
+        if stato.infiammazione_local_g == True:
+            stato.nutrienti_b -= stato.nutrienti_b * stato.cit_gut()
+            stato.nutrienti_n += stato.nutrienti_n * stato.cit_gut()
+
         return stato    
 
 
