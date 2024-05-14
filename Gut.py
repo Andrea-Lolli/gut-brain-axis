@@ -1,6 +1,7 @@
 import sys
 import math
 import networkx as nx
+import os
 from mpi4py import MPI
 import numpy as np
 from dataclasses import dataclass
@@ -16,7 +17,6 @@ from repast4py.space import DiscretePoint as dpt
 from repast4py.space import BorderType, OccupancyType
 
 """
-
 Malattie associate all'alfa-sinucleina (ad es. Morbo di Parkinson, demenza a corpi di Lewy):
 
     Tremore a riposo, specialmente nelle mani.
@@ -52,12 +52,9 @@ Malattie associate alla proteina tau (ad es. Malattia di Alzheimer, demenze fron
     Problemi di sonno, inclusi problemi di insonnia o sonno disturbato.
     Cambiamenti nell'alimentazione, come una maggiore o minore appetito.
     Riduzione delle capacità visuo-spaziali o della coordinazione motoria.
-
 """
 
-
 model = None
-
 
 spec = [
     ('mo', int32[:]),
@@ -98,7 +95,6 @@ class GridNghFinder:
 @dataclass(slots=True)
 class Stato:
     """
-
     Classe che sintetizza lo stato dei due sistemi connessi.
     Ipoteticamente un plausibile sistemi vascolare.
     tick, tick di sistema
@@ -112,7 +108,6 @@ class Stato:
     citochine_brain, livello delle citochine e determina l'infiammazione locale
     alfa, beta, tau, determinate il tipo di neurodegenerazione
     infiammazione_locale_, flag di riferimento
-
     """
     tick: int = 0
     eta : int = 0
@@ -129,36 +124,30 @@ class Stato:
     infiammazione_local_g : bool = False
     infiammazione_local_b: bool = False
     #infiammazione_local_bg: bool = False
-    def ratio(self) -> np.float16:
-        """
-        
-        rapporto tra i batteri, benefici e non, a livello locale
 
+    def ratio(self) -> np.float16:
+        """ 
+        rapporto tra i batteri, benefici e non, a livello locale
         """
         self.ratio_bn = (self.prodotto_n) / (self.prodotto_b+1)
         return self.ratio_bn
+    
     def cit_gut(self) -> np.float16 :
         """
-        
         aumento base della produzione di citochine a livello intestinale, proporzionale al rapporto tra i tipi di batteri
-        
         """
         self.citochine_gut = np.random.default_rng().exponential(scale=1/self.eta) * self.ratio()
         return self.citochine_gut
 
 
 class Soglia(core.Agent):
-
     """
-
     Agente che vigila sull'esecuzione dell'elaborazione.
     Punto di contatto tra due sistemi, definibile come interfaccia, regola il comportamento locale e sintetizza 
     lo stato dei due sistemi comunicanti
     Stato, @dataclass
     flag, update ghost
-
     """
-
     TYPE = 0
 
     def __init__(self, nid: int, agent_type: int, rank: int):
@@ -166,12 +155,9 @@ class Soglia(core.Agent):
         self.Env = Stato()
         self.flag = False
         
-
     def gather_local_b(self, env: Stato):
         """
-        
         Aggiorna il punto di contatto del sistema "brain", tramite assegnamenti, al tempo t
-
         """
         self.Env.tick = env.tick
         self.Env.eta = env.eta
@@ -183,9 +169,7 @@ class Soglia(core.Agent):
 
     def gather_local_g(self, env: Stato):
         """
-        
         Aggiorna il punto di contatto del sistema "gut", tramite assegnamenti, al tempo t 
-
         """
         self.Env.citochine_gut = env.citochine_gut
         self.Env.nutrienti_b = env.nutrienti_b
@@ -196,16 +180,13 @@ class Soglia(core.Agent):
         self.Env.citochine_gut = env.cit_gut()
         self.flag = True
     
-
     def comportamento_locale(self):
         """
-
         Componenete locale, combinazione di Soglia locale , sotto-sistema locale "brain" (una parte della neural net)
         e sotto-sistema local "gut" (una parte della griglia).
         Per comportamento locale si intende la gestione dei casi in cui una delle parti del comportamento locale risulti 
         sbilanciata verso uno stato infiammatorio. Saranno le quantità dei metaboliti benefici e nocivi a determinare l'intensità del 
         bilanciamento.
-
         """
         if (self.Env.infiammazione_local_g == False) and (self.Env.infiammazione_local_b == True):
             self.Env.citochine_brain -= (self.Env.prodotto_b * self.Env.citochine_brain)/ params['fattore.di.scala']
@@ -213,11 +194,8 @@ class Soglia(core.Agent):
             
         if (self.Env.infiammazione_local_g == True ) and  (self.Env.infiammazione_local_b == False):
             self.Env.citochine_brain += (self.Env.prodotto_n * self.Env.citochine_gut)/ params['fattore.di.scala']
-            self.Env.citochine_gut -= (self.Env.prodotto_b * self.Env.citochine_gut)/ params['fattore.di.scala']
-            
-            
+            self.Env.citochine_gut -= (self.Env.prodotto_b * self.Env.citochine_gut)/ params['fattore.di.scala']         
     
-
     def log(self):
         pass
     
@@ -226,9 +204,7 @@ class Soglia(core.Agent):
     
     def update(self, env, flag):
         """
-        
         Update per ghost
-
         """
         if flag:
             self.Env = env
@@ -237,9 +213,7 @@ class Soglia(core.Agent):
 
 def crea_nodo(nid, agent_type, rank, **kwargs):
     """
-    
     Autoesplicativo, repast4py
-
     """
     if agent_type == 0:
          return Soglia(nid, agent_type, rank)
@@ -248,11 +222,10 @@ def crea_nodo(nid, agent_type, rank, **kwargs):
     if agent_type == 4:
          return GliaTest(nid, agent_type, rank)
 
+
 def restore_nodo(agent_data):
     """
-
     Autoesplicativo repast4py
-
     """
     uid = agent_data[0]
     if  uid[1] == 0:
@@ -264,7 +237,11 @@ def restore_nodo(agent_data):
     
 
 class Batterio_Benefico(core.Agent):
-    
+    """
+    Agente che rappresenta un batterio benefico.
+    Si riproduce all'interno dell'intestino se ha risorse necessarie per farlo, 
+    il sistema immunitario è più efficiente quando questi batteri sono presenti nella flora intestinale in maggiori quantità
+    """
     TYPE = 1
 
     def __init__(self, local_id: int, rank: int, pt: dpt):
@@ -314,7 +291,11 @@ class Batterio_Benefico(core.Agent):
         return (self.uid, self.pt.coordinates, self.riserva, self.hp, self.stato)
     
 class Batterio_Nocivo(core.Agent):
-    
+    """
+    Agente che rappresenta un batterio "nocivo".
+    Si riproduce all'interno dell'intestino se ha risorse necessarie per farlo, 
+    il sistema immunitario viene inibito quando questi batteri sono presenti nella flora intestinale in maggiori quantità
+    """
     TYPE = 2
 
     def __init__(self, local_id: int, rank: int, pt: dpt):
@@ -357,22 +338,19 @@ class Batterio_Nocivo(core.Agent):
             if self.riserva >=2:
                 self.riserva = self.riserva - 2
             else:
-                self.hp = self.hp - 2
-        
+                self.hp = self.hp - 2     
 
     def save(self) -> Tuple:
         return (self.uid, self.pt.coordinates, self.riserva, self.hp, self.stato)
 
 
 class Neuro(core.Agent):
-
     """
     Agente che rappresenta il neurone.
     Produce, comunica e smaltisce.
     In natura tutte e tre le possibili proteine sono prodotte dal neurone, durante la sua vita. 
     Di conseguenza, c'è una possibilittà, proporzionale all'età di produrre una proteina patologica.
     """
-
     TYPE = 3
 
     def __init__(self, nid: int, agent_type: int, rank: int):
@@ -385,8 +363,7 @@ class Neuro(core.Agent):
         self.flag = False
         self.stato = "non_compromesso"
     
-    def step(self, stato: Stato):
-        
+    def step(self, stato: Stato): 
         """
         Serie di azioni compiute dal neurone, a tick. 
         Produce elementi, proteine.
@@ -416,7 +393,6 @@ class Neuro(core.Agent):
         soglia = self.accumolo_alfa + self.accumolo_beta + self.accumulo_tau
         if self.patologia > soglia and self.eta >= params['init_degenerazione'] :
             self.stato = "compromesso"
-
 
     def prod_tau(self):
         return self.accumulo_tau
@@ -450,7 +426,7 @@ class Neuro(core.Agent):
         comunica solo con il glia associato o ai glia associati
         """
         for ngh in model.neural_net.graph.neighbors(self):
-            if ngh.uid[1] == 4 :
+            if ngh.uid[1] == GliaTest.TYPE :
                 self.to_glia(ngh)
                 # prelievo da ghost
             if ngh.uid[1] == 3:
@@ -458,14 +434,11 @@ class Neuro(core.Agent):
                 self.accumolo_beta += ngh.prod_beta() / params['fattore.di.scala']
                 self.accumulo_tau += ngh.prod_tau() /  params['fattore.di.scala']
                 self.patologia += ngh.prod_patologia() / params['fattore.di.scala']
-
-
         
     def to_glia(self, glia):
         to_delete = self.patologia / self.eta
         glia.fagocitosi(to_delete)
         self.patologia -= abs(to_delete)
-
 
     def save(self) -> Tuple:
         return (self.uid,
@@ -493,9 +466,10 @@ class Neuro(core.Agent):
             self.flag = False
 
 
-
 class GliaTest(core.Agent):
-
+    """
+    Agente che rappresenta la glia, svolge funzioni essenziali per il sistema immunitario... TODO
+    """
     TYPE = 4
 
     def __init__(self, nid: int, agent_type: int, rank: int):
@@ -508,7 +482,6 @@ class GliaTest(core.Agent):
 
     def step(self, stato:Stato):
         """
-
         Le citochine cumolate per i vari rank vengono redistribuite e presen in esame per verificare
         lo stato interno del microglia. 
         Iinfluiscono sulle citochine recepite, all'interno del cervello anche le citochine provenienti dall'intestino.
@@ -518,9 +491,7 @@ class GliaTest(core.Agent):
         In DAM1 (Disease-Associated Microglia) primo stato delle malattie neurodegenerative, il glia, può rimuovere una parte 
         della "patologia" esterna e accumulare naturalmente le proprie scorie.
         In DAM2, il processo biologico spinge verso una situazione di infiammazione cronica.
-
         """
-
         self.citochine_recepite += stato.citochine_brain
         self.citochine_recepite += stato.citochine_gut
         
@@ -552,14 +523,9 @@ class GliaTest(core.Agent):
             stato.infiammazione_local_b = True
             self.flag = True
             return stato
-
-
-
-
                    
     def fagocitosi(self, patogeno):
-        self.da_fagocitare += patogeno 
-        
+        self.da_fagocitare += patogeno   
 
     def save(self):
         return(self.uid,self.stato,self.da_autofagocitare, self.da_fagocitare, self.citochine_recepite, self.flag)
@@ -573,7 +539,6 @@ class GliaTest(core.Agent):
             self.flag = False
 
 
-
 class Model:
 
     def __init__(self, comm: MPI.Intracomm, params: Dict):
@@ -582,16 +547,13 @@ class Model:
         self.context = ctx.SharedContext(comm)
         self.rank = self.comm.Get_rank()
 
-
         # create the schedule
         self.runner = schedule.init_schedule_runner(comm)
         self.runner.schedule_repeating_event(1, 1, self.step)
         self.runner.schedule.schedule_repeating_event(1,2, self.clear)
         self.runner.schedule_stop(params['stop.at'])
-
         self.tick = 0
 
-        
         fpath = params['network_file']
         read_network(fpath, self.context, crea_nodo, restore_nodo)
         self.net = self.context.get_projection('int_net')
@@ -609,7 +571,6 @@ class Model:
         self.count_n = 0
         rng = repast4py.random.default_rng
         
-
         for i in range(params['benefico.count']):
             pt = self.grid.get_random_local_pt(rng)
             b = Batterio_Benefico(i, self.rank, pt)
@@ -623,7 +584,6 @@ class Model:
             self.grid.move(b, pt)
             self.count_n += 1
 
-
     def step(self):
         self.tick += 1
 
@@ -633,7 +593,6 @@ class Model:
 
         stato.nutrienti_b = params['nutrimento.benefico'] / stato.eta
         stato.nutrienti_n = params['nutrimento.nocivo'] / stato.eta
-
 
         for agent in self.context.agents(agent_type=0):
 
@@ -666,15 +625,12 @@ class Model:
                         nodo.Env.alfa_sin += i.Env.alfa_sin
                         nodo.Env.beta_a += i.Env.beta_a
                         nodo.Env.tau += i.Env.tau
-
-
                     
                     nodo.Env.citochine_brain = nodo.Env.citochine_brain / (nodo.Env.citochine_brain + 1)
                     nodo.Env.citochine_gut = nodo.Env.citochine_gut / (nodo.Env.citochine_gut + 1)
                     nodo.Env.infiammazione_local_b = stato.infiammazione_local_b
                     nodo.Env.infiammazione_local_g = stato.infiammazione_local_g
                     #nodo.Env.infiammazione_local_bg = stato.infiammazione_local_bg
-
         
         self.context.synchronize(lambda x : x)
 
@@ -683,13 +639,15 @@ class Model:
             if nodo.uid[2] == self.rank and nodo.uid[1] == Soglia.TYPE:
 
                 nodo.comportamento_locale()
-        
-    
             
         self.terminal()
-        #fine metodo
-
-
+        #log molto temporaneo per il sistema intestino (TODO creare file di output dinamico se non esiste)
+        with open("./output/test.txt", "a") as file:
+            for agent in self.context.agents():
+                if agent.TYPE == Batterio_Benefico.TYPE or agent.TYPE == Batterio_Nocivo.TYPE:
+                    pt = self.grid.get_location(agent)
+                    if not pt is None:
+                        file.write("{} {} {} {} {}\n".format(self.tick, agent.TYPE, pt.x, pt.y, self.rank))
 
     def start(self):
         self.runner.execute()
@@ -702,8 +660,6 @@ class Model:
                 
         for i in roba_da_matti:
             self.context.remove(i)
-
-    
 
     def terminal(self):
         """alla fine va eliminato"""
