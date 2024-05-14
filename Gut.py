@@ -228,11 +228,11 @@ def restore_nodo(agent_data):
     Autoesplicativo repast4py
     """
     uid = agent_data[0]
-    if  uid[1] == 0:
+    if  uid[1] == Soglia.TYPE:
             return Soglia(uid[0], uid[1], uid[2])
-    if  uid[1] == 3:
+    if  uid[1] == Neuro.TYPE:
             return Neuro(uid[0], uid[1], uid[2])
-    if  uid[1] == 4:
+    if  uid[1] == GliaTest.TYPE:
             return GliaTest(uid[0], uid[1], uid[2])
     
 
@@ -429,7 +429,7 @@ class Neuro(core.Agent):
             if ngh.uid[1] == GliaTest.TYPE :
                 self.to_glia(ngh)
                 # prelievo da ghost
-            if ngh.uid[1] == 3:
+            if ngh.uid[1] == Neuro.TYPE:
                 self.accumolo_alfa += ngh.prod_alfa() / params["fattore.di.scala"]
                 self.accumolo_beta += ngh.prod_beta() / params['fattore.di.scala']
                 self.accumulo_tau += ngh.prod_tau() /  params['fattore.di.scala']
@@ -665,18 +665,18 @@ class Model:
         """alla fine va eliminato"""
         if self.rank == 0:
             for b in self.context.agents():
-                if b.uid[1] == 1 or b.uid[1] == 2:
+                if b.uid[1] == Batterio_Benefico.TYPE or b.uid[1] == Batterio_Nocivo.TYPE:
                     print("Rank {} agente {} {} {} {} {}".format(self.rank,b , b.hp, b.riserva, b.stato, b.pt))
-                if b.uid[1] == 3:
+                if b.uid[1] == Neuro.TYPE:
                      print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, b , b.eta, b.stato, b.accumolo_alfa, b.accumolo_beta, b.accumulo_tau, b.patologia))
                      for bb in self.neural_net.graph.neighbors(b):
-                        if bb.uid[1] == 3:
+                        if bb.uid[1] == Neuro.TYPE:
                             print("Rank {} agente {} {} {} {} {} {} patologia : {}".format(self.rank, bb , bb.eta, bb.stato, bb.accumolo_alfa, bb.accumolo_beta, bb.accumulo_tau, bb.patologia))
-                if b.uid[1] == 4:
+                if b.uid[1] == GliaTest.TYPE:
                     print("Rank {} agente {} {} {} {} recepite: {}".format(self.rank, b , b.stato, b.da_autofagocitare, b.da_fagocitare, b.citochine_recepite))
                     for bb in self.neural_net.graph.neighbors(b):
                         print("Rank {} agente {} {}".format(self.rank,bb, bb.stato))
-                if b.uid[1] == 0:
+                if b.uid[1] == Soglia.TYPE:
                     print("Rank {} agente {} {}".format(self.rank, b.uid, b.Env))
                     for bb in self.net.graph.neighbors(b):
                         print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
