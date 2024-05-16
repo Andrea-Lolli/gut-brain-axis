@@ -21,8 +21,9 @@ def parse_simulation_data(file_path):
 
 
 class AgentModelGUI:
-    def __init__(self, title, x_size, y_size, data_path):
+    def __init__(self, title, x_size, y_size, simulation_ticks, data_path):
         self.root = tk.Tk()
+        self.simulation_ticks = simulation_ticks
         self.root.title(title)
         self.simulation_data = parse_simulation_data(data_path)
         self.simulation_started = False
@@ -34,13 +35,13 @@ class AgentModelGUI:
         self.header = tk.Frame(self.root)
         self.header.pack(side="top", fill="x", pady=6)
         # Bottoni header per azioni simulazione
-        self.button1 = tk.Button(self.header, text="Avvia", command=self.start_simulation)
+        self.button1 = tk.Button(self.header, text="Avvia", command=self.on_start_simulation)
         self.button1.pack(side="left")
-        self.button2 = tk.Button(self.header, text="Ferma", command=self.pause_simulation)
+        self.button2 = tk.Button(self.header, text="Ferma", command=self.on_pause_simulation)
         self.button2.pack(side="left")
-        self.button3 = tk.Button(self.header, text="Tick ++", command=self.advance_tick)
+        self.button3 = tk.Button(self.header, text="Tick ++", command=self.on_advance_tick)
         self.button3.pack(side="left")
-        self.button4 = tk.Button(self.header, text="Tick --", command=self.revert_tick)
+        self.button4 = tk.Button(self.header, text="Tick --", command=self.on_revert_tick)
         self.button4.pack(side="left")
         self.label1 = tk.Label(self.header, text="Tick: -")
         self.label1.pack(side="right", padx= 15)
@@ -81,31 +82,36 @@ class AgentModelGUI:
                 y1 = y0 + 10
                 self.grid_canvas.create_rectangle(round(x0), round(y0), round(x1), round(y1), fill=agent_color)
     
-    def start_simulation(self):
+    def on_start_simulation(self):
         self.simulation_started = True
-        self.loop_simulation()
+        self.start_simulation()
 
-    def loop_simulation(self):
-        if self.simulation_started is True:
+    def start_simulation(self):
+        if self.simulation_started == True:
             self.advance_tick()
-            self.root.after(200, self.loop_simulation)
+            self.root.after(200, self.start_simulation)
 
-    def pause_simulation(self):
+    def on_pause_simulation(self):
         self.simulation_started = False
 
-    def advance_tick(self):
+    def on_advance_tick(self):
         self.simulation_started = False  
-        self.draw_grid()   
-        if self.current_tick_index < len(self.simulation_data):
+        self.advance_tick()
+
+    def advance_tick(self): 
+        if self.current_tick_index < self.simulation_ticks:
+            self.draw_grid()  
             self.current_tick_index += 1
             tick_data = self.simulation_data[self.current_tick_index]
             self.draw_agents(tick_data)
             self.label1.config(text=f"Tick: {self.current_tick_index}")
+        else:
+            self.simulation_started = False
 
-    def revert_tick(self):
+    def on_revert_tick(self):
         self.simulation_started = False
         self.draw_grid() # Pulisci la griglia
-        if self.current_tick_index > 0:
+        if self.current_tick_index >= 0:
             self.current_tick_index -= 1
             tick_data = self.simulation_data[self.current_tick_index]
             self.draw_agents(tick_data)
@@ -115,7 +121,8 @@ class AgentModelGUI:
 title = "Gut-Brain Axis simulation"
 x_size = 8
 y_size = 8
-app = AgentModelGUI(title, x_size, y_size, "./output/test.txt")
+simulation_tick = 70
+app = AgentModelGUI(title, x_size, y_size, simulation_tick, "./output/test2rand.txt")
 app.run()
 
 # simulation_data = parse_simulation_data("exampleGuiInput.txt")

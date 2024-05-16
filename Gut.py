@@ -2,6 +2,7 @@ import sys
 import math
 import networkx as nx
 import os
+import random as rn
 from mpi4py import MPI
 import numpy as np
 from dataclasses import dataclass
@@ -270,7 +271,8 @@ class Batterio_Benefico(core.Agent):
 
     def duplica(self) -> bool:
         """se stesso"""
-        if self.riserva >= 10:
+        random_number = rn.random()
+        if self.riserva >= 10 and random_number < 0.6:
             self.riserva = self.riserva - 10
             return True
         else:
@@ -324,7 +326,8 @@ class Batterio_Nocivo(core.Agent):
 
     def duplica(self) -> bool:
         """se stesso"""
-        if self.riserva >= 10:
+        random_number = rn.random()
+        if self.riserva >= 10 and random_number < 0.6:
             self.riserva = self.riserva - 10
             return True
         else:
@@ -570,19 +573,28 @@ class Model:
         self.count_b = 0
         self.count_n = 0
         rng = repast4py.random.default_rng
-        
+
+        local_b = self.grid.get_local_bounds()
+
         for i in range(params['benefico.count']):
-            pt = self.grid.get_random_local_pt(rng)
+            #pt = self.grid.get_random_local_pt(rng)
+            x = rn.randint(local_b.xmin, local_b.xmin + local_b.xextent -1)
+            y = rn.randint(local_b.ymin, local_b.ymin + local_b.yextent -1)
+            pt = dpt(x,y)
             b = Batterio_Benefico(i, self.rank, pt)
             self.context.add(b)
             self.grid.move(b, pt)
             self.count_b += 1
         for i in range(params['nocivo.count']):
-            pt = self.grid.get_random_local_pt(rng)
+            #pt = self.grid.get_random_local_pt(rng)
+            x = rn.randint(local_b.xmin, local_b.xmin + local_b.xextent -1)
+            y = rn.randint(local_b.ymin, local_b.ymin + local_b.yextent -1)
+            pt = dpt(x,y)
             b = Batterio_Nocivo(i, self.rank, pt)
             self.context.add(b)
             self.grid.move(b, pt)
             self.count_n += 1
+        self.log_agents_pos()
 
     def step(self):
         self.tick += 1
@@ -597,7 +609,7 @@ class Model:
         for agent in self.context.agents(agent_type=0):
 
             if agent.uid[2] == self.rank:
-                
+
                 stato.citochine_brain = (agent.Env.citochine_brain / self.net.graph.size())
                 stato.citochine_gut = (agent.Env.citochine_gut / self.net.graph.size())
 
@@ -640,9 +652,13 @@ class Model:
 
                 nodo.comportamento_locale()
             
-        self.terminal()
+        #self.terminal()
+        self.log_agents_pos()
+        
+
+    def log_agents_pos(self):
         #log molto temporaneo per il sistema intestino (TODO creare file di output dinamico se non esiste)
-        with open("./output/test.txt", "a") as file:
+        with open("./output/test2rand.txt", "a") as file:
             for agent in self.context.agents():
                 if agent.TYPE == Batterio_Benefico.TYPE or agent.TYPE == Batterio_Nocivo.TYPE:
                     pt = self.grid.get_location(agent)
@@ -681,9 +697,6 @@ class Model:
                     for bb in self.net.graph.neighbors(b):
                         print("Rank {} agente {} {}".format(self.rank, bb.uid, bb.Env))
         
-        
-            
-
     def brain_step(self, stato:Stato) -> Stato:
         for e in self.neural_net.graph:
             if e.uid[2] == self.rank and (e.uid[1] == Neuro.TYPE or e.uid[1] == GliaTest.TYPE):
