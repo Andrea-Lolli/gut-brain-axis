@@ -209,18 +209,18 @@ class Soglia(core.Agent):
         """
         if flag:
             self.Env = env
-            self.flag = False  
+            self.flag = False
 
 
 def crea_nodo(nid, agent_type, rank, **kwargs):
     """
     Autoesplicativo, repast4py
     """
-    if agent_type == 0:
+    if agent_type == Soglia.TYPE:
          return Soglia(nid, agent_type, rank)
-    if agent_type == 3:
+    if agent_type == Neuro.TYPE:
          return Neuro(nid, agent_type, rank)
-    if agent_type == 4:
+    if agent_type == GliaTest.TYPE:
          return GliaTest(nid, agent_type, rank)
 
 
@@ -544,11 +544,12 @@ class GliaTest(core.Agent):
 
 class Model:
 
-    def __init__(self, comm: MPI.Intracomm, params: Dict):
+    def __init__(self, comm: MPI.Intracomm, params: Dict, filepath):
 
         self.comm = comm
         self.context = ctx.SharedContext(comm)
         self.rank = self.comm.Get_rank()
+        self.filepath = filepath
 
         # create the schedule
         self.runner = schedule.init_schedule_runner(comm)
@@ -572,8 +573,6 @@ class Model:
         self.ngh_finder = GridNghFinder(0, 0, box.xextent, box.yextent)
         self.count_b = 0
         self.count_n = 0
-        rng = repast4py.random.default_rng
-
         local_b = self.grid.get_local_bounds()
 
         for i in range(params['benefico.count']):
@@ -656,13 +655,15 @@ class Model:
         self.log_agents_pos()
         
 
-    def log_agents_pos(self):
-        #log molto temporaneo per il sistema intestino (TODO creare file di output dinamico se non esiste)
-        with open("./output/test2rand.txt", "a") as file:
+    def log_agents_pos(self):   
+        filepath = self.filepath
+
+        # apre il file in scrittura o lo crea se non esiste
+        with open(filepath, "a") as file:
             for agent in self.context.agents():
                 if agent.TYPE == Batterio_Benefico.TYPE or agent.TYPE == Batterio_Nocivo.TYPE:
                     pt = self.grid.get_location(agent)
-                    if not pt is None:
+                    if pt is not None:
                         file.write("{} {} {} {} {}\n".format(self.tick, agent.TYPE, pt.x, pt.y, self.rank))
 
     def start(self):
@@ -714,6 +715,7 @@ class Model:
                 if b.duplica():
                     flag = True
                     nghs = self.ngh_finder.find(b.pt.x, b.pt.y)
+                    rn.shuffle(nghs)
                     for ngh in nghs:                
                         at = dpt(0,0,0)
                         at._reset_from_array(ngh)
@@ -758,9 +760,9 @@ class Model:
         return stato    
 
 
-def run(params: Dict):
+def run(params: Dict, filepath):
     global model
-    model = Model(MPI.COMM_WORLD, params)
+    model = Model(MPI.COMM_WORLD, params, filepath)
     model.start()
 
 
@@ -768,4 +770,20 @@ if __name__ == "__main__":
     parser = parameters.create_args_parser()
     args = parser.parse_args()
     params = parameters.init_params(args.parameters_file, args.parameters)
-    run(params)
+
+    output_folder = "./output"
+
+    # inizializza file di output
+    execution_number = 1
+    filepath = ""
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)  
+    # genera nome del file dinamico
+    while True:
+        filename = f"test{execution_number}rand.txt"
+        filepath = os.path.join(output_folder, filename) # percorso del file di output
+        if not os.path.exists(filepath):
+            break
+        execution_number += 1
+
+    run(params, filepath)
