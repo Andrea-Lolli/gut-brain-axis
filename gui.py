@@ -2,7 +2,8 @@ import random
 import tkinter as tk
 
 def parse_simulation_data(file_path):
-    data = [] #dati della simulazione
+    gut_data = [] # Dati intestino (batteri benefici e nocivi)
+    soglia_data = [] # Valori della simulazione
 
     with open(file_path, 'r') as file:
         for line in file:
@@ -10,15 +11,21 @@ def parse_simulation_data(file_path):
             agent_data = line.split()
             current_tick = int(agent_data[0])
             agent_type = int(agent_data[1])
-            agent_pos = (int(agent_data[2]), int(agent_data[3]))
-            #estende la lista dei dati
-            if current_tick >= len(data):
-                #riempe i tick vuoti (non ci dovrebbero essere boh)
-                data.extend([{} for _ in range(current_tick - len(data) + 1)])
-            #salva i dati per il tick corrente
-            data[current_tick].setdefault(agent_type, []).append(agent_pos)
 
-    return data
+            if agent_type == 1 or agent_type == 2: # Agente = batteri
+                agent_pos = (int(agent_data[2]), int(agent_data[3]))
+                # Estende la lista dei dati
+                if current_tick >= len(gut_data):
+                    # Riempe i tick vuoti (non ci dovrebbero essere boh)
+                    gut_data.extend([{} for _ in range(current_tick - len(gut_data) + 1)])
+                # Salva i dati per il tick corrente
+                gut_data[current_tick].setdefault(agent_type, []).append(agent_pos)
+            elif agent_type == 0: # Dati di un agente Soglie
+                nutrienti_b = agent_data[2]
+                nutrienti_n = agent_data[3]
+                soglia_data.append((nutrienti_b, nutrienti_n))
+
+    return gut_data, soglia_data
 
 
 def read_network_file(file_path):
@@ -48,12 +55,17 @@ class AgentModelGUI:
         self.root = tk.Tk()
         self.simulation_ticks = simulation_ticks
         self.root.title(title)
-        self.simulation_data = parse_simulation_data(data_path)
+        self.simulation_data, self.soglia_data = parse_simulation_data(data_path)
         self.simulation_started = False
         self.current_tick_index = -1 # usato per mostarer 1 tick per volta nella griglia
         self.x_size = x_size
         self.y_size = y_size
         self.network_path = network_path
+
+        lb, ln = [], []
+        for d in self.soglia_data:
+            lb.append(int(d[0]))
+            ln.append(int(d[1]))
 
         # Crea header
         self.header = tk.Frame(self.root)
@@ -73,6 +85,8 @@ class AgentModelGUI:
         # Crea area per mostrare la griglia e la net
         self.container_frame = tk.Frame(self.root)
         self.container_frame.pack(side="top", fill="both", expand=True)
+        self.chart_frame = tk.Frame(self.root)
+        self.chart_frame.pack(side="bottom", fill="both", expand=True)
 
         # canvas per la griglia
         self.grid_canvas = tk.Canvas(self.container_frame, width=x_size * 20, height=y_size * 20, bg="white")
@@ -82,8 +96,15 @@ class AgentModelGUI:
         self.net_canvas = tk.Canvas(self.container_frame, width=300, height=300, bg="white")
         self.net_canvas.pack(side="left", fill="both", expand=True)
 
+        # Canvas per il line chart
+        self.chart_canvas = tk.Canvas(self.chart_frame, width=600, height=200, bg="white")
+        self.chart_canvas.pack(side="top", fill="both", expand=True)
+
         # disegna la griglia
         self.draw_grid()
+        #TEST TODO
+        self.plot_line_chart(lb) 
+        self.plot_line_chart(ln)
 
     def draw_grid(self):
         cell_width = 20 #self.grid_canvas.winfo_width() / x_size TODO
@@ -107,24 +128,56 @@ class AgentModelGUI:
         x_spacing = canvas_width // levels_number
         y_spacing = canvas_height // (len(nodes) // levels_number + 1)
 
-        # Calculate positions for nodes
+        # Calcola la posizione dei nodi
         for i, node in enumerate(nodes):
             level = i // levels_number
             x = (i % levels_number + 1) * x_spacing
             y = (level + 1) * y_spacing
             node_positions[node[0]] = (x, y)
 
-        # Draw edges
+        # Disegna vertici
         for edge in edges:
             node1, node2 = edge
             x1, y1 = node_positions[node1]
             x2, y2 = node_positions[node2]
             self.net_canvas.create_line(x1, y1, x2, y2)
 
-        # Draw nodes
+        # Disegna nodi
         for node, (x, y) in node_positions.items():
             self.net_canvas.create_oval(x - radius, y - radius, x + radius, y + radius, fill="skyblue")
             self.net_canvas.create_text(x, y, text=str(node), fill="black")
+
+    def plot_line_chart(self, data_points):
+        self.chart_canvas.delete("all")  
+        if not data_points:
+            return
+
+        # Calcola dimensioni
+        width = int(self.chart_canvas['width'])
+        height = int(self.chart_canvas['height'])
+        padding = 20
+        plot_width = width - 2 * padding
+        plot_height = height - 2 * padding
+        max_value = max(data_points)
+        min_value = min(data_points)
+        value_range = max_value - min_value if max_value != min_value else 1
+        x_step = plot_width / (len(data_points) - 1)
+        y_scale = plot_height / value_range
+
+        # Disegna assi
+        self.chart_canvas.create_line(padding, height - padding, width - padding, height - padding, fill="black")
+        self.chart_canvas.create_line(padding, padding, padding, height - padding, fill="black")
+        self.chart_canvas.create_text(padding - 2, height - padding, text=str(min(data_points)), anchor=tk.E)
+        self.chart_canvas.create_text(padding - 2, padding, text=str(max(data_points)), anchor=tk.E)
+        self.chart_canvas.create_text(width - padding, height - padding / 2, text=str(len(data_points) - 1), anchor=tk.N)
+
+        # Disegna linee
+        for i in range(len(data_points) - 1):
+            x1 = padding + i * x_step
+            y1 = height - padding - (data_points[i] - min_value) * y_scale
+            x2 = padding + (i + 1) * x_step
+            y2 = height - padding - (data_points[i + 1] - min_value) * y_scale
+            self.chart_canvas.create_line(x1, y1, x2, y2, fill="blue")
 
     def run(self):
         self.root.mainloop()
@@ -180,7 +233,10 @@ title = "Gut-Brain Axis simulation"
 x_size = 8
 y_size = 8
 simulation_tick = 70
-app = AgentModelGUI(title, x_size, y_size, simulation_tick, "./output/test2rand.txt", "network.txt")
+input_file = "./output/test3rand.txt"
+network_file ="network.txt"
+app = AgentModelGUI(title, x_size, y_size, simulation_tick, input_file, network_file)
+#app.plot_line_chart([10, 20, 15, 30, 25, 100, 35, 50])
 app.run()
 
 # simulation_data = parse_simulation_data("exampleGuiInput.txt")

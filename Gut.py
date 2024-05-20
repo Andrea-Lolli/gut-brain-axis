@@ -665,6 +665,8 @@ class Model:
                     pt = self.grid.get_location(agent)
                     if pt is not None:
                         file.write("{} {} {} {} {}\n".format(self.tick, agent.TYPE, pt.x, pt.y, self.rank))
+                elif agent.TYPE == Soglia.TYPE:
+                    file.write("{} {} {} {} {}\n".format(self.tick, agent.TYPE, int(agent.Env.nutrienti_b), int(agent.Env.nutrienti_n), self.rank))
 
     def start(self):
         self.runner.execute()
@@ -780,7 +782,7 @@ if __name__ == "__main__":
         os.makedirs(output_folder)  
     # genera nome del file dinamico
     while True:
-        filename = f"test{execution_number}rand.txt"
+        filename = f"test{execution_number}.txt"
         filepath = os.path.join(output_folder, filename) # percorso del file di output
         if not os.path.exists(filepath):
             break
