@@ -384,8 +384,8 @@ class Neuro(core.Agent):
         self.flag = True
 
     def prod(self):
-        tripla = np.random.normal(self.eta, 1, size=3)
-        tripla = 1 / (1 + np.exp(-0.5 * (tripla - self.eta)))
+        tripla = [] #TODO aggiungere influenza età (nel random normal? età da 0 a 1?)
+        tripla = np.random.normal(0, 1, size=3)
         tripla = abs(tripla)
         self.accumolo_alfa += tripla[0]
         self.accumolo_beta += tripla[1]
@@ -412,9 +412,8 @@ class Neuro(core.Agent):
     def get_eta(self):
         return self.eta
 
-    def autofagia(self):
-        tripla = np.random.normal(self.eta, 1, size=3)
-        tripla = 1 / (1 + np.exp(-0.5 * (tripla - self.eta)))
+    def autofagia(self): #TODO anche questo potrebbe variare con l'età
+        tripla = np.random.normal(0, 0.2, size=3)
         tripla = abs(tripla)
         if self.stato != "compromesso":
             self.accumolo_alfa -= tripla[0]
@@ -617,9 +616,7 @@ class Model:
                 temp = self.brain_step(stato)
                 agent.gather_local_b(temp)
 
-        #self.terminal()
         self.context.synchronize(lambda x : x)
-        #sself.terminal()
         
         for nodo in self.net.graph:
                 
@@ -665,8 +662,8 @@ class Model:
                     pt = self.grid.get_location(agent)
                     if pt is not None:
                         file.write("{} {} {} {} {}\n".format(self.tick, agent.TYPE, pt.x, pt.y, self.rank))
-                elif agent.TYPE == Soglia.TYPE:
-                    file.write("{} {} {} {} {}\n".format(self.tick, agent.TYPE, int(agent.Env.nutrienti_b), int(agent.Env.nutrienti_n), self.rank))
+                elif agent.TYPE == Soglia.TYPE and self.tick != 0:
+                    file.write("{} {} {} {} {} {} {} {} {} {} {} {}\n".format(self.tick, agent.TYPE, "{:.3f}".format(agent.Env.nutrienti_b), "{:.3f}".format(agent.Env.nutrienti_n), "{:.3f}".format(agent.Env.prodotto_b), "{:.3f}".format(agent.Env.prodotto_n), "{:.3f}".format(agent.Env.alfa_sin), "{:.3f}".format(agent.Env.beta_a), "{:.3f}".format(agent.Env.tau), "{:.3f}".format(agent.Env.citochine_gut), "{:.3f}".format(agent.Env.citochine_brain), self.rank))
 
     def start(self):
         self.runner.execute()

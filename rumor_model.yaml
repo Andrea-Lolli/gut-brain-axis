@@ -9,4 +9,4 @@ nutrimento.nocivo: 4000
 nutrimento.benefico: 1000
 soglia_citochine: 1
 init_degenerazione: 45
-fattore.di.scala :  10
+fattore.di.scala :  35

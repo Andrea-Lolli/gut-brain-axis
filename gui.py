@@ -24,9 +24,14 @@ def parse_simulation_data(file_path):
             elif agent_type == 0: # Dati di un agente Soglie
                 nutrienti_b = agent_data[2]
                 nutrienti_n = agent_data[3]
-                citochine_gut = agent_data[4]
-                citochine_brain = agent_data[5]
-                soglia_data.append((current_tick, nutrienti_b, nutrienti_n, citochine_gut, citochine_brain))
+                prodotto_b = agent_data[4]
+                prodotto_n = agent_data[5]
+                alfa = agent_data[6]
+                beta = agent_data[7]
+                tau = agent_data[8]
+                citochine_g = agent_data[9]
+                citochine_b = agent_data[10]
+                soglia_data.append((current_tick, nutrienti_b, nutrienti_n, prodotto_b, prodotto_n, alfa, beta, tau, citochine_g, citochine_b))
 
     return gut_data, soglia_data
 
@@ -69,13 +74,18 @@ class AgentModelGUI:
         self.chart_view = chart_view
 
         #TODO test
-        lb, ln, cg, cb = [], [], [], []
+        lb, ln, cg, cb, alfa, beta, tau, cito_g, cito_b = [], [], [], [], [], [], [], [], []
         for data in self.soglia_data:
             tick = data[0]
             lb.append(float(data[1]))
             ln.append(float(data[2]))
             cg.append(float(data[3]))
             cb.append(float(data[4]))
+            alfa.append(float(data[5]))
+            beta.append(float(data[6]))
+            tau.append(float(data[7]))
+            cito_g.append(float(data[8]))
+            cito_b.append(float(data[9]))
 
         # Crea header
         self.header = tk.Frame(self.root)
@@ -114,9 +124,11 @@ class AgentModelGUI:
             self.chart_frame.pack(side="bottom", fill="both", expand=True)
             self.chart_canvas = tk.Canvas(self.chart_frame, width=600, height=200, bg="white")
             self.chart_canvas.pack(side="top", fill="both", expand=True)
-            self.plot_line_chart((lb, ln), ("blue", "red")) #TODO test
+            #self.plot_line_chart((lb, ln), ("blue", "red")) #TODO test
             #self.draw_chart() # ???
-            #self.plot_line_chart(([0,0], cb), ("blue", "red")) 
+            self.plot_line_chart((cg, cb), ("orange", "yellow")) 
+            self.plot_line_chart((alfa, beta, tau), ("red", "green", "blue")) 
+            self.plot_line_chart((cito_g, cito_b), ("magenta", "cyan"))
 
     def draw_grid(self):
         cell_width = 20 #self.grid_canvas.winfo_width() / x_size TODO
@@ -161,7 +173,7 @@ class AgentModelGUI:
             self.net_canvas.create_text(x, y, text=str(node), fill="black")
 
     def plot_line_chart(self, data_sets, colors):
-        self.chart_canvas.delete("all")  # Clear the previous lines
+        #self.chart_canvas.delete("all")  # Clear the previous lines
         if not data_sets or not colors:
             return
 
@@ -186,11 +198,11 @@ class AgentModelGUI:
         self.chart_canvas.create_line(padding, padding, padding, height - padding, fill="black")  # y-axis
 
         # Add labels to axes
-        self.chart_canvas.create_text(padding, height - padding, text=str(min_value), anchor=tk.E)
-        self.chart_canvas.create_text(padding, padding, text=str(max_value), anchor=tk.E)
+        #self.chart_canvas.create_text(padding, height - padding, text=str(min_value), anchor=tk.E)
+        #self.chart_canvas.create_text(padding, padding, text=str(max_value), anchor=tk.E)
 
         max_len = max(len(data_points) for data_points in data_sets)
-        self.chart_canvas.create_text(width - padding, height - padding / 2, text=str(max_len - 1), anchor=tk.N)
+        #self.chart_canvas.create_text(width - padding, height - padding / 2, text=str(max_len - 1), anchor=tk.N)
 
         # Plot each dataset
         for data_points, color in zip(data_sets, colors):
