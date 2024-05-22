@@ -320,15 +320,15 @@ class Neuro(core.Agent):
 
     def __init__(self, nid: int, agent_type: int, rank: int):
         super().__init__(nid, agent_type, rank)
-        self.patologia = 0 # combinazione degli effetti della patologia proteica e delle citochine
+        self.patologia = 0.0 # combinazione degli effetti della patologia proteica e delle citochine
         self.flag = False
         self.stato = "non_compromesso"
     
     def save(self) -> Tuple:
         return (self.uid,
-        self.stato,
         self.patologia,
-        self.flag
+        self.flag,
+        self.stato
         )
     
     def update(self,
@@ -543,15 +543,15 @@ class Model:
 
         soglia_locale = self.context.agent((self.rank, 0, self.rank))
 
-        #carico tick precedente
+        # carico tick precedente
         stato.citochine_brain = soglia_locale.Env.citochine_brain
         stato.citochine_gut = soglia_locale.Env.citochine_gut
 
-        stato.prodotto_b = soglia_locale.prodotto_b 
-        stato.prodotto_n = soglia_locale.prodotto_n 
+        stato.prodotto_b = soglia_locale.Env.prodotto_b 
+        stato.prodotto_n = soglia_locale.Env.prodotto_n 
 
-        stato.nutrienti_b = soglia_locale.nutrienti_b
-        stato.nutrienti_n = soglia_locale.nutrienti_n
+        stato.nutrienti_b = soglia_locale.Env.nutrienti_b
+        stato.nutrienti_n = soglia_locale.Env.nutrienti_n
 
         stato.infiammazione_local_g = soglia_locale.Env.infiammazione_local_g
         stato.infiammazione_local_b = soglia_locale.Env.infiammazione_local_b
