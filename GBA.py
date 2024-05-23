@@ -117,10 +117,11 @@ class Stato:
         rapporto tra i batteri, benefici e non, a livello locale
         si manteine constante se non ci sono nutrienti benefici
         """
-        if self.prodotto_b != 0 and self.prodotto_n != 0:
+        if self.prodotto_b != 0:
             return self.prodotto_n / self.prodotto_b
-        if self.prodotto_b == 0 or self.prodotto_n ==0 :
-            return 1.0
+        if self.prodotto_b == 0 or self.prodotto_n == 0 :
+            return 0.5
+
 
     
 class Soglia(core.Agent):
@@ -154,21 +155,22 @@ class Soglia(core.Agent):
         Aggiorna il punto di contatto del sistema "brain", tramite assegnamenti, al tempo t
         """
         self.Env.citochine_brain = env.citochine_brain
-        self.Env_infiammazione_local_b = env.infiammazione_local_b
+        self.Env.infiammazione_local_b = env.infiammazione_local_b
         self.flag = True
 
     def gather_local_g(self, env: Stato):
         """
         Aggiorna il punto di contatto del sistema "gut", tramite assegnamenti, al tempo t 
         """
-       
+        self.Env.eta = env.eta
         self.Env.nutrienti_b = env.nutrienti_b
         self.Env.nutrienti_n = env.nutrienti_n
         self.Env.prodotto_b = env.prodotto_b
         self.Env.prodotto_n = env.prodotto_n
         self.Env.citochine_gut = env.citochine_gut
-        self.Env_infiammazione_local_g = env.infiammazione_local_g
+        self.Env.infiammazione_local_g = env.infiammazione_local_g
         self.flag = True
+        
 
     def comportamento_locale(self):
         """
@@ -178,24 +180,24 @@ class Soglia(core.Agent):
         sbilanciata verso uno stato infiammatorio. Saranno le quantità dei metaboliti benefici e nocivi a determinare l'intensità del 
         bilanciamento.
         """
-        size = MPI.COMM_WORLD.Get_size()
+        if (self.Env.infiammazione_local_g == False) and (self.Env.infiammazione_local_b == True) and self.Env.citochine_brain > 0:
+            self.Env.citochine_gut += abs((self.Env.ratio_nb() * self.Env.citochine_brain) /  abs((self.Env.ratio_nb() * self.Env.citochine_brain)+1 ))
+            self.Env.citochine_brain -= abs((self.Env.ratio_nb() * self.Env.citochine_brain) /  abs((self.Env.ratio_nb() * self.Env.citochine_brain)+1 ))
 
-        if (self.Env.infiammazione_local_g == False) and (self.Env.infiammazione_local_b == True):
-            self.Env.citochine_gut += abs((self.Env.ratio_nb() * self.Env.citochine_brain)/ size)
-            self.Env.citochine_brain -= abs((self.Env.ratio_nb() * self.Env.citochine_brain) / size)
-
-        if (self.Env.infiammazione_local_g == True ) and  (self.Env.infiammazione_local_b == False):
-            self.Env.citochine_brain += abs((self.Env.ratio_nb() * self.Env.citochine_gut)/size)
-            self.Env.citochine_gut -= abs((self.Env.ratio_nb() * self.Env.citochine_gut)/size) 
+        if (self.Env.infiammazione_local_g == True ) and  (self.Env.infiammazione_local_b == False) and self.Env.citochine_gut > 0:
+            self.Env.citochine_brain += abs((self.Env.ratio_nb() * self.Env.citochine_gut) /  abs((self.Env.ratio_nb() * self.Env.citochine_gut)+1 ))
+            self.Env.citochine_gut -= abs((self.Env.ratio_nb() * self.Env.citochine_gut) /  abs((self.Env.ratio_nb() * self.Env.citochine_gut)+1 )) 
 
         self.flag =  True  
     
     def share(self, ngh):
+        #TODO qui normalizzo le citochine
+
         size = MPI.COMM_WORLD.Get_size()
-        self.Env.citochine_brain += abs(ngh.Env.citochine_brain / size)
-        self.Env.citochine_gut += abs(ngh.Env.citochine_gut  / size)
-        self.Env.prodotto_b += abs(ngh.Env.prodotto_b / size)
-        self.Env.prodotto_n += abs(ngh.Env.prodotto_n / size)
+        self.Env.citochine_brain += abs(ngh.Env.citochine_brain / size) / abs((ngh.Env.citochine_brain / size)+1)
+        self.Env.citochine_gut += abs(ngh.Env.citochine_gut  / size) /  abs((ngh.Env.citochine_brain / size)+1)
+        self.Env.prodotto_b += abs(ngh.Env.prodotto_b / size) / abs((ngh.Env.prodotto_b / size)+1)
+        self.Env.prodotto_n += abs(ngh.Env.prodotto_n / size) / abs((ngh.Env.prodotto_n / size)+1)
         self.flag = True
 
 
@@ -348,21 +350,27 @@ class Neuro(core.Agent):
         self.comunica() # rispetto al modello
         self.autofagia(stato)
         self.check(stato)
+        
+        #if model.rank == 0:
+            #print(self, self.patologia)
+
         self.flag= True
     
     def prod(self, stato:Stato):
-        temp = np.random.normal(stato.eta/2 , stato.eta/2 )
+        size = MPI.COMM_WORLD.Get_size()
+        temp = abs(np.random.normal(stato.eta/size , stato.eta/size ))
         temp = abs(logistica_gaussiana(temp, 0.0005))
         self.patologia += temp/2 #il massimo incremento è 0.5
 
     def autofagia(self, stato:Stato):
+        size = MPI.COMM_WORLD.Get_size()
         tripla = []
-        tripla = np.random.normal(stato.eta,stato.eta/3, size=3)
+        tripla = abs(np.random.normal(stato.eta/size,stato.eta/size, size=3))
         tripla = logistica_gaussiana(tripla,0.0005)
-        if self.stato == "compromesso" and stato.infiammazione_local_g == True:
-            self.patologia += abs(max(tripla[0],tripla[1],tripla[2]))/2       
+        if self.stato != "compromesso" and stato.infiammazione_local_g == False:
+            self.patologia -= abs(min(tripla[0],tripla[1],tripla[2])) / size      
         else:
-            self.patologia -= abs(max(tripla[0],tripla[1],tripla[2]))/2
+            self.patologia += abs(max(tripla[0],tripla[1],tripla[2])) / size
 
     def comunica(self):
         """
@@ -374,13 +382,13 @@ class Neuro(core.Agent):
                 self.to_glia(ngh)
                 # prelievo da ghost
             if ngh.uid[1] == Neuro.TYPE:
-                self.patologia += abs(ngh.patologia / size)
+                self.patologia += abs(ngh.patologia / (ngh.patologia +1) ) /size
         
     def to_glia(self, glia):
         # spedisce al glia una certà quantità e questo valore diminuisce in base all'eta.
         # per ora rilascia un 1/10 di malattia che poi il glia andrà a consumare
         size = MPI.COMM_WORLD.Get_size()
-        to_delete = self.patologia / size
+        to_delete = self.patologia / size 
         glia.fagocitosi(to_delete) 
         self.patologia -= abs(to_delete)
 
@@ -422,6 +430,7 @@ class GliaTest(core.Agent):
         self.da_fagocitare += patogeno 
 
     def step(self, stato:Stato)-> Stato:
+        
         """
         Le citochine cumolate per i vari rank vengono redistribuite e presen in esame per verificare
         lo stato interno del microglia. 
@@ -433,49 +442,73 @@ class GliaTest(core.Agent):
         della "patologia" esterna e accumulare naturalmente le proprie scorie.
         In DAM2, il processo biologico spinge verso una situazione di infiammazione cronica.
         """
+        
 
         # le citochine sono globali
         self.citochine_recepite = stato.citochine_brain
+
+        #if model.rank == 0:
+            #print(self, self.stato, self.da_fagocitare, self.da_fagocitare, self.citochine_recepite)
+
+        p = self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare * stato.prodotto_b
+        n = self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare * stato.prodotto_n
 
         if stato.infiammazione_local_b == False:
             if self.stato == "omeostasi":
                 # oppure localmente non sono infiammato
                 self.da_fagocitare = self.da_fagocitare
-                self.da_autofagocitare = self.da_fagocitare
+                self.da_autofagocitare = self.da_fagocitare #logistica_gaussiana(x=self.da_fagocitare,k=0.001) #self.da_fagocitare
                 self.stato = "DAM1"
                 stato.infiammazione_local_b = False
                 self.flag = True
+
+                #if model.rank == 0:
+                    #print(self, self.stato, self.da_fagocitare, self.da_autofagocitare, self.citochine_recepite)
                 # le citochine rimangono le stesse
                 return
             
             # ipotesti modello. NB è diversa dall'ipotesi di modello.
-            p = self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare * stato.nutrienti_b
-            n = self.citochine_recepite * self.da_fagocitare * self.da_autofagocitare * stato.nutrienti_n
+            
             if self.stato == "DAM1" and (abs(n) > abs(p)):
-                stato.citochine_brain += abs(self.da_autofagocitare * self.da_fagocitare)
+                stato.citochine_brain += abs(self.da_autofagocitare * self.da_fagocitare) / MPI.COMM_WORLD.Get_size() #((self.da_autofagocitare * self.da_fagocitare) +1)
                 stato.infiammazione_local_b = True
                 self.stato = "DAM2"
                 self.flag = True
                 return
 
             if self.stato == "DAM1" :
-                # l'autofagia dipende dalle citochine
-                self.da_autofagocitare += stato.citochine_brain 
-                self.da_fagocitare -= self.da_fagocitare / MPI.COMM_WORLD.Get_size()
+                # l'autofagia dipende dalle citochine? Si
+                stato.citochine_brain += logistica_gaussiana(self.da_fagocitare, 0.1) / MPI.COMM_WORLD.Get_size()
+                self.da_autofagocitare += self.citochine_recepite / (self.citochine_recepite + 1) 
+                self.da_fagocitare -= self.da_fagocitare / (self.da_fagocitare + 1)
                 stato.infiammazione_local_b = False
+                #if model.rank == 0:
+                    #print(self, self.stato, self.da_fagocitare, self.da_autofagocitare, self.citochine_recepite, stato)
                 return
             
-            if self.stato == "DAM2":
-                stato.citochine_brain += abs(self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain)
+            if self.stato == "DAM2" and  (abs(n) > abs(p)):
+                stato.citochine_brain += abs(self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain) / MPI.COMM_WORLD.Get_size()  #((self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain)+1)
                 stato.infiammazione_local_b = True
                 return
-
+            elif self.stato == "DAM2" and (abs(p) > abs(n)):
+                self.stato = "DAM1"
+                self.infiammazione_locale_b = False
+                return
+ 
         if stato.infiammazione_local_b == True:
 
-            if self.stato == "DAM2":
-                stato.citochine_brain += abs(self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain)
+            if self.stato == "DAM2" and  (abs(n) > abs(p)) :
+                stato.citochine_brain += abs(self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain) / MPI.COMM_WORLD.Get_size() #((self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain)+1)
                 stato.infiammazione_local_b = True
                 return
+            elif  self.stato == "DAM2" and  (abs(p) > abs(n)):
+                    self.stato == "DAM1"
+                    self.infiammazione_locale_b = False
+                    return
+
+
+
+
 
 class Model:
 
@@ -532,16 +565,20 @@ class Model:
             
     def step(self):
         
+        self.tick += 1
+
         #nuovo stato locale
         stato = Stato()
 
-        stato.eta = int(self.runner.tick())
+        stato.eta = self.tick
 
-        # solo tick 0
-        stato.nutrienti_b = params['nutrimento.benefico']
-        stato.nutrienti_n = params['nutrimento.nocivo'] 
 
-        soglia_locale = self.context.agent((self.rank, 0, self.rank))
+        # solo tick 1
+        if self.tick == 1:
+            stato.nutrienti_b = params['nutrimento.benefico']
+            stato.nutrienti_n = params['nutrimento.nocivo']
+
+        soglia_locale = self.context.agent((self.rank+1, 0, self.rank))
 
         # carico tick precedente
         stato.citochine_brain = soglia_locale.Env.citochine_brain
@@ -550,21 +587,29 @@ class Model:
         stato.prodotto_b = soglia_locale.Env.prodotto_b 
         stato.prodotto_n = soglia_locale.Env.prodotto_n 
 
-        stato.nutrienti_b = soglia_locale.Env.nutrienti_b
-        stato.nutrienti_n = soglia_locale.Env.nutrienti_n
+        if self.tick != 1:
+            stato.nutrienti_b = soglia_locale.Env.nutrienti_b
+            stato.nutrienti_n = soglia_locale.Env.nutrienti_n
+            
 
         stato.infiammazione_local_g = soglia_locale.Env.infiammazione_local_g
         stato.infiammazione_local_b = soglia_locale.Env.infiammazione_local_b
-
+        
+        
         #passo lo stato all'intestino
-        stato_up = self.gut_step(stato)
+        self.gut_step(stato)
         #recupero le informazioni salvandole nella soglia
-        soglia_locale.gather_local_g(stato_up)
+        soglia_locale.gather_local_g(stato)
+
+
+        #if self.rank==0:
+            #print("SOGLIA STATO INTERNO",soglia_locale.Env)
+        
 
         #passo lo stato al cervello
-        stato_up = self.brain_step(stato_up)
+        self.brain_step(stato)
         #recupero le informazioni salvandole nella soglia
-        soglia_locale.gather_local_b(stato_up)
+        soglia_locale.gather_local_b(stato)
 
         #teoricamente sincronizza solo i ghost delle network 
         #quindi questo agente soglia vedrà i sui vicini connessi aggiornati 
@@ -573,20 +618,31 @@ class Model:
         #comportamento locale
         soglia_locale.comportamento_locale()
 
+        #if self.rank==0:
+            #print("SOGLIA STATO INTERNO",soglia_locale.Env)
+
         #sincronizzo nuovamente per aggiornare i ghost con i nuovi valori
         self.context.synchronize(lambda x : x)
 
         #comportamento globale
         for nodo in self.net.graph.neighbors(soglia_locale):
                 soglia_locale.share(nodo)
+        
+        #if self.rank==0:
+            #print("SOGLIA STATO INTERNO",soglia_locale.Env)
 
         #sincronizzo e vado oltre
         self.context.synchronize(lambda x : x)
+
+        #if self.rank==0:
+            #print("SOGLIA STATO INTERNO",soglia_locale.Env)
+
 
         #pulisco i batteri
         self.clear()
 
         #chiusura
+
 
 
     def clear(self):
@@ -645,12 +701,13 @@ class Model:
         # verifica stato dell'intestino locale
         if stato.ratio_nb() > 1:
             stato.infiammazione_local_g = True
-        
-        # penalità infiammazione, se sto in infiammazione
-        if stato.infiammazione_local_g == True:
-            stato.nutrienti_b -= (stato.nutrienti_b * stato.ratio_nb)/MPI.COMM_WORLD.Get_size()  
-            stato.nutrienti_n += (stato.nutrienti_n * stato.ratio_nb)/MPI.COMM_WORLD.Get_size()
-
+            stato.citochine_gut += stato.ratio_nb()/(stato.ratio_nb()+1)
+            return stato
+        if stato.ratio_nb() < 1 and stato.citochine_gut > 0:
+            stato.citochine_gut -= stato.ratio_nb()/(stato.ratio_nb()+1)
+            stato.infiammazione_local_g = False
+            return stato
+            
         return stato
     
     def brain_step(self, stato:Stato) -> Stato:
@@ -666,11 +723,10 @@ class Model:
         for e in self.neural_net.graph:        
             if e.uid[2] == self.rank and (e.uid[1] == GliaTest.TYPE):
                 e.step(stato)
-                if stato.infiammazione_local_g == True:
+                if stato.infiammazione_local_b == True:
                     count_t +=1
                 else:
                     count_f +=1
-        
         if count_f > count_t:
             stato.infiammazione_local_b = False
         else:
