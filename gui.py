@@ -2,36 +2,41 @@ import random
 import argparse
 import tkinter as tk
 
-def parse_simulation_data(file_path):
+def parse_simulation_data(file_path, ranks):
     gut_data = [] # Dati intestino (batteri benefici e nocivi)
-    soglia_data = [] # Valori della simulazione
+    soglia_data = {} # Valori della simulazione
 
-    with open(file_path, 'r') as file:
-        for line in file:
-            line = line.strip()
-            agent_data = line.split()
-            current_tick = int(agent_data[0])
-            agent_type = int(agent_data[1])
+    for rank in ranks:
+        soglia_rank = []
+        with open(file_path, 'r') as file:
 
-            if agent_type == 1 or agent_type == 2: # Agente = batteri
-                agent_pos = (int(agent_data[2]), int(agent_data[3]))
-                # Estende la lista dei dati
-                if current_tick >= len(gut_data):
-                    # Riempe i tick vuoti (non ci dovrebbero essere boh)
-                    gut_data.extend([{} for _ in range(current_tick - len(gut_data) + 1)])
-                # Salva i dati per il tick corrente
-                gut_data[current_tick].setdefault(agent_type, []).append(agent_pos)
-            elif agent_type == 0: # Dati di un agente Soglie
-                nutrienti_b = agent_data[2]
-                nutrienti_n = agent_data[3]
-                prodotto_b = agent_data[4]
-                prodotto_n = agent_data[5]
-                alfa = agent_data[6]
-                beta = agent_data[7]
-                tau = agent_data[8]
-                citochine_g = agent_data[9]
-                citochine_b = agent_data[10]
-                soglia_data.append((current_tick, nutrienti_b, nutrienti_n, prodotto_b, prodotto_n, alfa, beta, tau, citochine_g, citochine_b))
+            for line in file:
+                line = line.strip()
+                agent_data = line.split()
+                current_tick = int(agent_data[0])
+                agent_type = int(agent_data[1])
+
+                if agent_type == 1 or agent_type == 2: # Agente = batteri
+                    agent_pos = (int(agent_data[2]), int(agent_data[3]))
+                    # Estende la lista dei dati
+                    if current_tick >= len(gut_data):
+                        # Riempe i tick vuoti (non ci dovrebbero essere boh)
+                        gut_data.extend([{} for _ in range(current_tick - len(gut_data) + 1)])
+                    # Salva i dati per il tick corrente
+                    gut_data[current_tick].setdefault(agent_type, []).append(agent_pos)
+
+                elif agent_type == 0 and int(agent_data[11]) == rank: # Dati di un agente Soglie
+                    nutrienti_b = agent_data[2]
+                    nutrienti_n = agent_data[3]
+                    prodotto_b = agent_data[4]
+                    prodotto_n = agent_data[5]
+                    alfa = agent_data[6]
+                    beta = agent_data[7]
+                    tau = agent_data[8]
+                    citochine_g = agent_data[9]
+                    citochine_b = agent_data[10]
+                    soglia_rank.append((current_tick, nutrienti_b, nutrienti_n, prodotto_b, prodotto_n, alfa, beta, tau, citochine_g, citochine_b))
+        soglia_data[rank] = soglia_rank
 
     return gut_data, soglia_data
 
@@ -59,11 +64,11 @@ def read_network_file(file_path):
 
 
 class AgentModelGUI:
-    def __init__(self, title, x_size, y_size, simulation_ticks, data_path, network_path, gut_view, network_view, chart_view):
+    def __init__(self, title, x_size, y_size, simulation_ticks, data_path, network_path, gut_view, network_view, chart_view, ranks):
         self.root = tk.Tk()
         self.simulation_ticks = simulation_ticks
         self.root.title(title)
-        self.simulation_data, self.soglia_data = parse_simulation_data(data_path)
+        self.simulation_data, self.soglia_data = parse_simulation_data(data_path, ranks)
         self.simulation_started = False
         self.current_tick_index = -1 # usato per mostarer 1 tick per volta nella griglia
         self.x_size = x_size
@@ -72,20 +77,35 @@ class AgentModelGUI:
         self.gut_view = gut_view
         self.network_view = network_view
         self.chart_view = chart_view
+        self.ranks = ranks
 
-        #TODO test
+        #TODO migliorare che fa schifo
         lb, ln, cg, cb, alfa, beta, tau, cito_g, cito_b = [], [], [], [], [], [], [], [], []
-        for data in self.soglia_data:
-            tick = data[0]
-            lb.append(float(data[1]))
-            ln.append(float(data[2]))
-            cg.append(float(data[3]))
-            cb.append(float(data[4]))
-            alfa.append(float(data[5]))
-            beta.append(float(data[6]))
-            tau.append(float(data[7]))
-            cito_g.append(float(data[8]))
-            cito_b.append(float(data[9]))
+        nRanks = len(self.ranks)
+        n_items = len(list(self.soglia_data.values())[0])
+        
+        for i in range(n_items):
+            lb0, ln0, cg0, cb0, alfa0, beta0, tau0, cito_g0, cito_b0 = 0,0,0,0,0,0,0,0,0
+            for rank in self.ranks:
+                data = self.soglia_data[rank]
+                lb0 += float(data[i][1])
+                ln0 += float(data[i][2])
+                cg0 += float(data[i][3])
+                cb0 += float(data[i][4])
+                alfa0 += float(data[i][5])
+                beta0 += float(data[i][6])
+                tau0 += float(data[i][7])
+                cito_g0 += float(data[i][8])
+                cito_b0 += float(data[i][9])
+            lb.append(lb0/nRanks)
+            ln.append(ln0/nRanks)
+            cg.append(cg0/nRanks)
+            cb.append(cb0/nRanks)
+            alfa.append(alfa0/nRanks)
+            beta.append(beta0/nRanks)
+            tau.append(tau0/nRanks)
+            cito_g.append(cito_g0/nRanks)
+            cito_b.append(cito_b0/nRanks)
 
         # Crea header
         self.header = tk.Frame(self.root)
@@ -108,7 +128,7 @@ class AgentModelGUI:
         
         # Gut
         if gut_view:
-            self.grid_canvas = tk.Canvas(self.container_frame, width=x_size * 20, height=y_size * 20, bg="white")
+            self.grid_canvas = tk.Canvas(self.container_frame, width=40+x_size * 20, height=40+y_size * 20, bg="white")
             self.grid_canvas.pack(side="left", fill="both", expand=True)
             self.draw_grid()
 
@@ -266,37 +286,32 @@ class AgentModelGUI:
     def run(self):
         self.root.mainloop()
 
-# TODO Da mettere come parametri letti dal file
-title = "Gut-Brain Axis simulation"
-x_size = 8
-y_size = 8
-simulation_tick = 70
-input_file = "./output/test7.txt"
-network_file ="network.txt"
-#app = AgentModelGUI(title, x_size, y_size, simulation_tick, input_file, network_file)
-#app.plot_line_chart([10, 20, 15, 30, 25, 100, 35, 50])
-#app.run()
-
-# simulation_data = parse_simulation_data("exampleGuiInput.txt")
-# print("dati letti in input:")
-# print(simulation_data)
+# TODO I default andrebbero rivisti ma vabè
 
 def main():
-    # Set up argument parser
     parser = argparse.ArgumentParser(description='Run the Gut-Brain Axis simulation.')
     parser.add_argument('-t','--title', type=str, default='Gut-Brain Axis simulation', help='Title of the simulation window')
     parser.add_argument('--x_size', type=int, default=8, help='X size of the grid')
     parser.add_argument('--y_size', type=int, default=8, help='Y size of the grid')
     parser.add_argument('--simulation_ticks', type=int, default=70, help='Number of simulation ticks')
     parser.add_argument('-i', '--input_file', type=str, required=True, help='Path to the input file')
-    parser.add_argument('-nf', '--network_file', type=str, required=True, help='Path to the network file')
-    parser.add_argument('-g', action='store_true', required=False, help='Enable gutgui')
-    parser.add_argument('-n', action='store_true', required=False, help='Enable network gui')
-    parser.add_argument('-c', action='store_true', required=False, help='Enable chart')
+    parser.add_argument('-nf', '--network_file', type=str, help='Path to the network file')
+    parser.add_argument('-g','--gut_view', action='store_true', required=False, help='Enable gutgui')
+    parser.add_argument('-n', '--network_view', action='store_true', required=False, help='Enable network gui')
+    parser.add_argument('-c', '--chart_view', action='store_true', required=False, help='Enable chart')
+    parser.add_argument('-r','--rank', type=str, default='', required=False, help='Select ranks to show in chart (ex: 1,2,3,4)')
     
     args = parser.parse_args()
     
-    # Use the parsed arguments to initialize the GUI
+    rnk_str = args.rank.split(',') #rimuovi valori non nuerici dai rank
+    ranks = []
+    for elemento in rnk_str:
+        try:
+            numero = int(elemento)
+            ranks.append(numero)
+        except ValueError:
+            pass
+
     app = AgentModelGUI(
         title=args.title,
         x_size=args.x_size,
@@ -304,9 +319,10 @@ def main():
         simulation_ticks=args.simulation_ticks,
         data_path=args.input_file,
         network_path=args.network_file,
-        gut_view=args.g,
-        network_view=args.n,
-        chart_view=args.c
+        gut_view=args.gut_view,
+        network_view=args.network_view,
+        chart_view=args.chart_view,
+        ranks = ranks
     )
     
     app.run()
