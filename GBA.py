@@ -111,16 +111,21 @@ class Stato:
     citochine_brain: float  = 0.0
     infiammazione_local_g : bool = False
     infiammazione_local_b: bool = False
+    #test finale feedback
+    init_degenerazione: float = 0.0
 
     def ratio_nb(self) -> float:
-        """ 
-        rapporto tra i batteri, benefici e non, a livello locale
-        si manteine constante se non ci sono nutrienti benefici
-        """
         if self.prodotto_b != 0:
             return self.prodotto_n / self.prodotto_b
         if self.prodotto_b == 0 or self.prodotto_n == 0 :
             return 0.5
+    
+    def ratio_bn(self)-> float:
+        if self.prodotto_n != 0:
+            return self.prodotto_b / self.prodotto_n
+        if self.prodotto_b == 0 or self.prodotto_n == 0 :
+            return 0.5
+
 
 
     
@@ -154,6 +159,7 @@ class Soglia(core.Agent):
         """
         Aggiorna il punto di contatto del sistema "brain", tramite assegnamenti, al tempo t
         """
+        self.Env.init_degenerazione = env.init_degenerazione
         self.Env.citochine_brain = env.citochine_brain
         self.Env.infiammazione_local_b = env.infiammazione_local_b
         self.flag = True
@@ -188,10 +194,13 @@ class Soglia(core.Agent):
             self.Env.citochine_brain += abs((self.Env.ratio_nb() * self.Env.citochine_gut) /  abs((self.Env.ratio_nb() * self.Env.citochine_gut)+1 ))
             self.Env.citochine_gut -= abs((self.Env.ratio_nb() * self.Env.citochine_gut) /  abs((self.Env.ratio_nb() * self.Env.citochine_gut)+1 )) 
 
+        if (self.Env.infiammazione_local_b == True and self.Env.infiammazione_local_b == True) or (self.Env.infiammazione_local_b == False and self.Env.infiammazione_local_b == False):
+            self.Env.citochine_brain = (self.Env.citochine_brain + self.Env.citochine_gut)/2
+            self.Env.citochine_gut = (self.Env.citochine_brain + self.Env.citochine_gut)/2
 
         self.flag =  True  
     
-    def share(self, ngh):
+    def share(self):
         #TODO
         # alessio sei cojone ci potevi pensare prima, basta modificare lo share in base allo stato dei locali. Che gran cojone che sono.
 
@@ -206,12 +215,13 @@ class Soglia(core.Agent):
         cit_g = []
         mb = []
         mn = []
-        for nodo in ngh:
-            
+        for nodo in model.net.graph.neighbors(self):
+
             cit_b.append(nodo.Env.citochine_brain)
             cit_g.append(nodo.Env.citochine_gut)
             mb.append(nodo.Env.prodotto_b)
             mn.append(nodo.Env.prodotto_n)
+
             if nodo.Env.infiammazione_local_b == True:
                 conta_tb +=1
             else:
@@ -222,50 +232,31 @@ class Soglia(core.Agent):
             else:
                 conta_fg += 1
         
-        
+        #if model.rank == 0:
+            #print(conta_tb,conta_fb, conta_tg, conta_fg)
         if conta_tb > conta_fb:
             self.Env.infiammazione_local_b = True
-            self.Env.citochine_brain = max(cit_b) 
+            self.Env.citochine_brain = abs(max(cit_b)) 
         else:
             self.Env.infiammazione_local_b = False
-            self.Env.citochine_brain = min(cit_b) 
+            self.Env.citochine_brain = abs(min(cit_b)) 
         
         if conta_tg > conta_fg:
             self.Env.infiammazione_local_g = True
-            self.Env.citochine_gut = max(cit_g)
+            self.Env.citochine_gut = abs(max(cit_g))
         else:
             self.Env.infiammazione_local_g = False
-            self.Env.citochine_gut = min(cit_g)
+            self.Env.citochine_gut = abs(min(cit_g))
+        
         
         if self.Env.prodotto_b < max(mb):
+            self.Env.prodotto_b = max(mb)/size
             self.Env.nutrienti_b += abs(min(mb)/size)
         if self.Env.prodotto_n < max(mn):
-            self.Env.nutrienti_n += abs(min(mn)/size)
+            self.Env.prodotto_n = max(mn)/size
+            self.Env.nutrienti_n += abs(max(mn)/size)
 
-        
-
-            
-
-
-
-
-        #if self.Env.citochine_brain > 10**4:
-            #self.Env.citochine_brain = self.Env.citochine_brain/10**3
-        
-        #self.Env.citochine_brain += ngh.Env.citochine_brain / (self.Env.citochine_brain+1)  # (MPI.COMM_WORLD.Get_size()*model.neural_net.graph.size())
-
-        #self.Env.citochine_gut += ngh.Env.citochine_gut / (self.Env.citochine_gut+1) #(MPI.COMM_WORLD.Get_size()*model.neural_net.graph.size())
-        
-        # i prodotti aumentano linearmente
-        #self.Env.prodotto_b += abs(ngh.Env.prodotto_b / size) / abs((ngh.Env.prodotto_b / size)+1)
-        #self.Env.prodotto_n += abs(ngh.Env.prodotto_n / size) / abs((ngh.Env.prodotto_n / size)+1)
-        
-        #self.Env.nutrienti_b += self.Env.nutrienti_b
-        #self.Env.nutrienti_n += self.Env.nutrienti_n 
-
-        #if model.rank==0:
-            #print("SOGLIA STATO INTERNO",self.Env.citochine_brain)
-         
+        self.Env.init_degenerazione -= (self.Env.citochine_brain + self.Env.citochine_gut) / (size * size_g * 2)
 
         self.flag = True 
 
@@ -316,10 +307,10 @@ class Batterio_Benefico(core.Agent):
         if self.hp < 1:
             self.stato = "morto"
         else:
-            if self.riserva >=2:
-                self.riserva = self.riserva - 2
+            if self.riserva >=3:
+                self.riserva = self.riserva - 3
             else:
-                self.hp = self.hp - 2
+                self.hp = self.hp - 3
 
 
     def save(self) -> Tuple:
@@ -371,10 +362,10 @@ class Batterio_Nocivo(core.Agent):
         if self.hp < 1:
             self.stato = "morto"
         else:
-            if self.riserva >=2:
-                self.riserva = self.riserva - 2
+            if self.riserva >=3:
+                self.riserva = self.riserva - 3
             else:
-                self.hp = self.hp - 2     
+                self.hp = self.hp - 3     
 
     def save(self) -> Tuple:
         return (self.uid, self.pt.coordinates, self.riserva, self.hp, self.stato)
@@ -466,7 +457,7 @@ class Neuro(core.Agent):
         devo combinare le azioni delle citochine del cervello per determinare
         lo stato di salute del neurone associato
         """
-        if stato.infiammazione_local_b == True and params["init.degenerazione"]: 
+        if stato.infiammazione_local_b == True and stato.eta >= stato.init_degenerazione: 
         #and self.eta >= params['init_degenerazione'] :
             self.stato = "compromesso"
 
@@ -555,12 +546,12 @@ class GliaTest(core.Agent):
                     #print(self, self.stato, self.da_fagocitare, self.da_autofagocitare, self.citochine_recepite, stato)
                 return
             
-            if self.stato == "DAM2" and  (abs(n) > abs(p)):
+            if self.stato == "DAM2" and  (abs(n) > abs(p))  and stato.eta >= stato.init_degenerazione:
                 stato.citochine_brain += abs((self.da_autofagocitare) * (self.da_fagocitare) * (stato.citochine_brain/stato.eta) )  #((self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain)+1)
                 stato.infiammazione_local_b = True
                 return
             
-            if self.stato == "DAM2" and (abs(p) > abs(n)):
+            if self.stato == "DAM2" and (abs(p) > abs(n)) and stato.eta >= stato.init_degenerazione:
                 self.stato = "DAM1"
                 stato.infiammazione_local_b = False
                 stato.citochine_brain -= stato.citochine_brain / 2
@@ -568,7 +559,7 @@ class GliaTest(core.Agent):
  
         if stato.infiammazione_local_b == True:
 
-            if self.stato == "DAM2" and  (abs(n) > abs(p)) :
+            if self.stato == "DAM2" and  (abs(n) > abs(p)) and stato.eta >= stato.init_degenerazione:
                 stato.citochine_brain += abs((self.da_autofagocitare) * (self.da_fagocitare) * (stato.citochine_brain/stato.eta)) #((self.da_autofagocitare * self.da_fagocitare * stato.citochine_brain)+1)
                 stato.infiammazione_local_b = True
                 return
@@ -649,6 +640,7 @@ class Model:
         if self.tick == 1:
             stato.nutrienti_b = params['nutrimento.benefico']
             stato.nutrienti_n = params['nutrimento.nocivo']
+            stato.init_degenerazione = params['init.degenerazione']
 
         soglia_locale = self.context.agent((self.rank+1, 0, self.rank))
 
@@ -662,6 +654,7 @@ class Model:
         if self.tick != 1:
             stato.nutrienti_b = soglia_locale.Env.nutrienti_b 
             stato.nutrienti_n = soglia_locale.Env.nutrienti_n
+            stato.init_degenerazione = soglia_locale.Env.init_degenerazione
             
 
         stato.infiammazione_local_g = soglia_locale.Env.infiammazione_local_g
@@ -697,11 +690,11 @@ class Model:
         self.context.synchronize(lambda x : x)
 
         #comportamento globale
-        ngh = []
-        for nodo in self.net.graph.neighbors(soglia_locale):
-                ngh.append(nodo)        
+        #ngh = []
+        #for nodo in self.net.graph.neighbors(soglia_locale):
+                #ngh.append(nodo)     
                 
-        soglia_locale.share(ngh)
+        soglia_locale.share()
                 
         
         #if self.rank==0:
@@ -746,7 +739,7 @@ class Model:
                 if b.duplica():
                     flag = True
                     nghs = self.ngh_finder.find(b.pt.x, b.pt.y)
-                    #rn.shuffle(nghs)
+                    rn.shuffle(nghs)
                     for ngh in nghs:                
                         at = dpt(0,0,0)
                         at._reset_from_array(ngh)
@@ -780,12 +773,16 @@ class Model:
                             break
         
         # verifica stato dell'intestino locale
-        if stato.ratio_nb() > 1:
+        if stato.ratio_nb() > 1 and stato.eta >= stato.init_degenerazione:
             stato.infiammazione_local_g = True
-            stato.citochine_gut += stato.ratio_nb()
+            stato.citochine_gut += stato.ratio_nb() 
+            stato.nutrienti_n += stato.ratio_nb()
+            stato.nutrienti_b += stato.ratio_bn()
             return stato
-        if stato.ratio_nb() < 1 and stato.citochine_gut > 0:
-            stato.citochine_gut -= stato.ratio_nb() * stato.citochine_gut
+        if stato.ratio_nb() < 1 and stato.citochine_gut > 0 and stato.eta >= stato.init_degenerazione:
+            stato.citochine_gut -= stato.ratio_bn() 
+            stato.nutrienti_b += stato.ratio_bn()
+            stato.nutrienti_n += stato.ratio_bn()
             stato.infiammazione_local_g = False
             return stato
         if stato.ratio_nb == 1:
