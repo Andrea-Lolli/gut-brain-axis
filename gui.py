@@ -25,17 +25,14 @@ def parse_simulation_data(file_path, ranks):
                     # Salva i dati per il tick corrente
                     gut_data[current_tick].setdefault(agent_type, []).append(agent_pos)
 
-                elif agent_type == 0 and int(agent_data[11]) == rank: # Dati di un agente Soglie
+                elif agent_type == 0 and int(agent_data[8]) == rank: # Dati di un agente Soglie
                     nutrienti_b = agent_data[2]
                     nutrienti_n = agent_data[3]
                     prodotto_b = agent_data[4]
                     prodotto_n = agent_data[5]
-                    alfa = agent_data[6]
-                    beta = agent_data[7]
-                    tau = agent_data[8]
-                    citochine_g = agent_data[9]
-                    citochine_b = agent_data[10]
-                    soglia_rank.append((current_tick, nutrienti_b, nutrienti_n, prodotto_b, prodotto_n, alfa, beta, tau, citochine_g, citochine_b))
+                    citochine_g = agent_data[6]
+                    citochine_b = agent_data[7]
+                    soglia_rank.append((current_tick, nutrienti_b, nutrienti_n, prodotto_b, prodotto_n, citochine_g, citochine_b))
         soglia_data[rank] = soglia_rank
 
     return gut_data, soglia_data
@@ -80,30 +77,24 @@ class AgentModelGUI:
         self.ranks = ranks
 
         #TODO migliorare che fa schifo
-        lb, ln, cg, cb, alfa, beta, tau, cito_g, cito_b = [], [], [], [], [], [], [], [], []
+        lb, ln, cg, cb,  cito_g, cito_b = [], [], [], [], [], []
         nRanks = len(self.ranks)
         n_items = len(list(self.soglia_data.values())[0])
         
         for i in range(n_items):
-            lb0, ln0, cg0, cb0, alfa0, beta0, tau0, cito_g0, cito_b0 = 0,0,0,0,0,0,0,0,0
+            lb0, ln0, cg0, cb0, cito_g0, cito_b0 = 0,0,0,0,0,0
             for rank in self.ranks:
                 data = self.soglia_data[rank]
                 lb0 += float(data[i][1])
                 ln0 += float(data[i][2])
                 cg0 += float(data[i][3])
                 cb0 += float(data[i][4])
-                alfa0 += float(data[i][5])
-                beta0 += float(data[i][6])
-                tau0 += float(data[i][7])
-                cito_g0 += float(data[i][8])
-                cito_b0 += float(data[i][9])
+                cito_g0 += float(data[i][5])
+                cito_b0 += float(data[i][6])
             lb.append(lb0/nRanks)
             ln.append(ln0/nRanks)
             cg.append(cg0/nRanks)
             cb.append(cb0/nRanks)
-            alfa.append(alfa0/nRanks)
-            beta.append(beta0/nRanks)
-            tau.append(tau0/nRanks)
             cito_g.append(cito_g0/nRanks)
             cito_b.append(cito_b0/nRanks)
 
@@ -127,7 +118,7 @@ class AgentModelGUI:
         self.container_frame.pack(side="top", fill="both", expand=True)
         
         # Gut
-        if gut_view:
+        if gut_view and x_size < 50 and y_size < 50: #se la griglia ha dimensioni ridotte
             self.grid_canvas = tk.Canvas(self.container_frame, width=40+x_size * 20, height=40+y_size * 20, bg="white")
             self.grid_canvas.pack(side="left", fill="both", expand=True)
             self.draw_grid()
@@ -146,9 +137,8 @@ class AgentModelGUI:
             self.chart_canvas.pack(side="top", fill="both", expand=True)
             #self.plot_line_chart((lb, ln), ("blue", "red")) #TODO test
             #self.draw_chart() # ???
-            self.plot_line_chart((cg, cb), ("orange", "yellow")) 
-            self.plot_line_chart((alfa, beta, tau), ("red", "green", "blue")) 
-            self.plot_line_chart((cito_g, cito_b), ("magenta", "cyan"))
+            self.plot_line_chart((cg, cb), ("orange", "yellow"))  
+            self.plot_line_chart((cito_g, cito_b), ("red", "green"))
 
     def draw_grid(self):
         cell_width = 20 #self.grid_canvas.winfo_width() / x_size TODO
@@ -165,6 +155,8 @@ class AgentModelGUI:
 
     def draw_net(self):
         nodes, edges = read_network_file(self.network_path)
+        if nodes > 100: # evitiamo di disegnare un milione di nodi...
+            return
         node_positions = {}
         radius = 6
         levels_number = 6
@@ -293,7 +285,7 @@ def main():
     parser.add_argument('-t','--title', type=str, default='Gut-Brain Axis simulation', help='Title of the simulation window')
     parser.add_argument('--x_size', type=int, default=8, help='X size of the grid')
     parser.add_argument('--y_size', type=int, default=8, help='Y size of the grid')
-    parser.add_argument('--simulation_ticks', type=int, default=70, help='Number of simulation ticks')
+    parser.add_argument('--simulation_ticks', type=int, default=100, help='Number of simulation ticks')
     parser.add_argument('-i', '--input_file', type=str, required=True, help='Path to the input file')
     parser.add_argument('-nf', '--network_file', type=str, help='Path to the network file')
     parser.add_argument('-g','--gut_view', action='store_true', required=False, help='Enable gutgui')
