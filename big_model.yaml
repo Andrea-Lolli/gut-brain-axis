@@ -1,10 +1,10 @@
 network_file: Int_network.txt
-neural_file: neural_net.txt
-stop.at: 80
-world.width: 8
-world.height: 8
+neural_file: big_net.txt
+stop.at: 300
+world.width: 500
+world.height: 500
 benefico.count: 1
 nocivo.count: 1
 nutrimento.nocivo: 4000
-nutrimento.benefico: 1000 
+nutrimento.benefico: 1000
 init.degenerazione: 45

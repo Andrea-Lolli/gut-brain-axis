@@ -1,8 +1,0 @@
-random.seed: 10
-stop.at: 20
-gut_cells.count: 5
-world.width: 100
-world.height: 100
-run.number: 1
-counts_file: './output/gridNetwork_test.csv'
-network_file: network.txt

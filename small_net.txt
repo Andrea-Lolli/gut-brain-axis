@@ -1,4 +1,4 @@
-neural_net 0
+small_net 0
 0 3 0
 1 4 0
 2 3 1

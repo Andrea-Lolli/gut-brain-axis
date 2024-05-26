@@ -1,4 +1,3 @@
-import random
 import argparse
 import tkinter as tk
 
@@ -50,7 +49,7 @@ def read_network_file(file_path):
                 edges_section = True
                 continue
             if not edges_section:
-                if line.startswith('rumor_network'):
+                if line.startswith('small_net'): #TODO parametrizzare da qualche parte
                     continue
                 node_info = list(map(int, line.split()))
                 nodes.append(node_info)
@@ -67,7 +66,7 @@ class AgentModelGUI:
         self.root.title(title)
         self.simulation_data, self.soglia_data = parse_simulation_data(data_path, ranks)
         self.simulation_started = False
-        self.current_tick_index = -1 # usato per mostarer 1 tick per volta nella griglia
+        self.current_tick_index = -1 # Usato per mostarer 1 tick per volta nella griglia
         self.x_size = x_size
         self.y_size = y_size
         self.network_path = network_path
@@ -77,24 +76,27 @@ class AgentModelGUI:
         self.ranks = ranks
 
         #TODO migliorare che fa schifo
-        lb, ln, cg, cb,  cito_g, cito_b = [], [], [], [], [], []
+        lb, ln, pg, pb,  cito_g, cito_b = [], [], [], [], [], []
         nRanks = len(self.ranks)
         n_items = len(list(self.soglia_data.values())[0])
         
         for i in range(n_items):
-            lb0, ln0, cg0, cb0, cito_g0, cito_b0 = 0,0,0,0,0,0
+            lb0, ln0, pg0, pb0, cito_g0, cito_b0 = 0,0,0,0,0,0
             for rank in self.ranks:
-                data = self.soglia_data[rank]
-                lb0 += float(data[i][1])
-                ln0 += float(data[i][2])
-                cg0 += float(data[i][3])
-                cb0 += float(data[i][4])
-                cito_g0 += float(data[i][5])
-                cito_b0 += float(data[i][6])
+                try:
+                    data = self.soglia_data[rank]
+                    lb0 += float(data[i][1])
+                    ln0 += float(data[i][2])
+                    pg0 += float(data[i][3])
+                    pb0 += float(data[i][4])
+                    cito_g0 += float(data[i][5])
+                    cito_b0 += float(data[i][6])
+                except IndexError:
+                    pass
             lb.append(lb0/nRanks)
             ln.append(ln0/nRanks)
-            cg.append(cg0/nRanks)
-            cb.append(cb0/nRanks)
+            pg.append(pg0/nRanks)
+            pb.append(pb0/nRanks)
             cito_g.append(cito_g0/nRanks)
             cito_b.append(cito_b0/nRanks)
 
@@ -117,9 +119,9 @@ class AgentModelGUI:
         self.container_frame = tk.Frame(self.root)
         self.container_frame.pack(side="top", fill="both", expand=True)
         
-        # Gut
-        if gut_view and x_size < 50 and y_size < 50: #se la griglia ha dimensioni ridotte
-            self.grid_canvas = tk.Canvas(self.container_frame, width=40+x_size * 20, height=40+y_size * 20, bg="white")
+        # Gut (griglia)
+        if gut_view and x_size < 50 and y_size < 50: # Se la griglia ha dimensioni ridotte
+            self.grid_canvas = tk.Canvas(self.container_frame, width=40+x_size * 20, height=40+y_size * 20, bg="white", borderwidth=0)
             self.grid_canvas.pack(side="left", fill="both", expand=True)
             self.draw_grid()
 
@@ -129,16 +131,15 @@ class AgentModelGUI:
             self.net_canvas.pack(side="left", fill="both", expand=True)
             self.draw_net()
 
-        # Charts
+        # Grafici
         if chart_view:
             self.chart_frame = tk.Frame(self.root)
             self.chart_frame.pack(side="bottom", fill="both", expand=True)
-            self.chart_canvas = tk.Canvas(self.chart_frame, width=600, height=200, bg="white")
+            self.chart_canvas = tk.Canvas(self.chart_frame, width=1200, height=400, bg="white")
             self.chart_canvas.pack(side="top", fill="both", expand=True)
-            #self.plot_line_chart((lb, ln), ("blue", "red")) #TODO test
-            #self.draw_chart() # ???
-            self.plot_line_chart((cg, cb), ("orange", "yellow"))  
-            self.plot_line_chart((cito_g, cito_b), ("red", "green"))
+            self.plot_line_chart((lb, ln), ("green", "red"))  
+            # self.plot_line_chart((pg, pb), ("orange", "yellow")) # Prodotti 
+            self.plot_line_chart((cito_g, cito_b), ("cyan", "magenta"))
 
     def draw_grid(self):
         cell_width = 20 #self.grid_canvas.winfo_width() / x_size TODO
@@ -153,6 +154,7 @@ class AgentModelGUI:
                 y1 = y0 + cell_height
                 self.grid_canvas.create_rectangle(padding + round(x0), padding + round(y0), padding + round(x1), padding + round(y1), outline="black", fill="white")
 
+    # TODO attualmente non è molto utile
     def draw_net(self):
         nodes, edges = read_network_file(self.network_path)
         if nodes > 100: # evitiamo di disegnare un milione di nodi...
@@ -185,18 +187,18 @@ class AgentModelGUI:
             self.net_canvas.create_text(x, y, text=str(node), fill="black")
 
     def plot_line_chart(self, data_sets, colors):
-        #self.chart_canvas.delete("all")  # Clear the previous lines
+        #self.chart_canvas.delete("all")  # Pulisce il canvas
         if not data_sets or not colors:
             return
 
-        # Determine canvas size and padding
+        # Determina le dimensioni del canvas
         width = int(self.chart_canvas['width'])
         height = int(self.chart_canvas['height'])
         padding = 30
         plot_width = width - 2 * padding
         plot_height = height - 2 * padding
 
-        # Determine global min and max values for scaling
+        # Normalizza tutte le curve per la dimensione della finestra
         all_values = [value for data_points in data_sets for value in data_points]
         max_value = max(all_values)
         min_value = min(all_values)
@@ -205,18 +207,14 @@ class AgentModelGUI:
         x_steps = [plot_width / (len(data_points) - 1) for data_points in data_sets]
         y_scale = plot_height / value_range
 
-        # Draw x and y axes
+        # Disegna asse x,y
         self.chart_canvas.create_line(padding, height - padding, width - padding, height - padding, fill="black")  # x-axis
         self.chart_canvas.create_line(padding, padding, padding, height - padding, fill="black")  # y-axis
-
-        # Add labels to axes
-        #self.chart_canvas.create_text(padding, height - padding, text=str(min_value), anchor=tk.E)
-        #self.chart_canvas.create_text(padding, padding, text=str(max_value), anchor=tk.E)
 
         max_len = max(len(data_points) for data_points in data_sets)
         #self.chart_canvas.create_text(width - padding, height - padding / 2, text=str(max_len - 1), anchor=tk.N)
 
-        # Plot each dataset
+        # Disegna i vari dataset
         for data_points, color in zip(data_sets, colors):
             x_step = plot_width / (len(data_points) - 1)
             for i in range(len(data_points) - 1):
@@ -227,12 +225,12 @@ class AgentModelGUI:
                 self.chart_canvas.create_line(x1, y1, x2, y2, fill=color)
 
     def draw_agents(self, agents_data):
-        padding = 20 # TODO dovrebbe essere uguale all'altro
+        padding = 20 # TODO Dovrebbe essere uguale all'altro sopra
 
         for agent_type, position in agents_data.items():
-            agent_color = "red" if agent_type == 1 else "blue"  # TODO rendere statici da qualche parte...
+            agent_color = "red" if agent_type == 1 else "green"  # TODO Rendere statici da qualche parte...
             for x,y in position:
-                x0 = x * 20 # TODO sarebbero da fare un po' meglio
+                x0 = x * 20 # TODO Sarebbero da fare un po' meglio
                 y0 = y * 20
                 x1 = x0 + 20
                 y1 = y0 + 20
@@ -259,7 +257,7 @@ class AgentModelGUI:
             self.current_tick_index += 1
             tick_data = self.simulation_data[self.current_tick_index]
             self.label1.config(text=f"Tick: {self.current_tick_index}")
-            if self.gut_view: # aggiorna griglia
+            if self.gut_view: # Aggiorna griglia
                 self.draw_grid()  
                 self.draw_agents(tick_data)
         else:
@@ -271,7 +269,7 @@ class AgentModelGUI:
             self.current_tick_index -= 1
             tick_data = self.simulation_data[self.current_tick_index]
             self.label1.config(text=f"Tick: {self.current_tick_index}")
-            if self.gut_view: # aggiorna griglia
+            if self.gut_view: # Aggiorna griglia
                 self.draw_grid() 
                 self.draw_agents(tick_data)
     
@@ -285,7 +283,7 @@ def main():
     parser.add_argument('-t','--title', type=str, default='Gut-Brain Axis simulation', help='Title of the simulation window')
     parser.add_argument('--x_size', type=int, default=8, help='X size of the grid')
     parser.add_argument('--y_size', type=int, default=8, help='Y size of the grid')
-    parser.add_argument('--simulation_ticks', type=int, default=100, help='Number of simulation ticks')
+    parser.add_argument('--simulation_ticks', type=int, default=300, help='Number of simulation ticks')
     parser.add_argument('-i', '--input_file', type=str, required=True, help='Path to the input file')
     parser.add_argument('-nf', '--network_file', type=str, help='Path to the network file')
     parser.add_argument('-g','--gut_view', action='store_true', required=False, help='Enable gutgui')
@@ -295,7 +293,7 @@ def main():
     
     args = parser.parse_args()
     
-    rnk_str = args.rank.split(',') #rimuovi valori non nuerici dai rank
+    rnk_str = args.rank.split(',') # Rimuovi valori non nuerici dai rank
     ranks = []
     for elemento in rnk_str:
         try:

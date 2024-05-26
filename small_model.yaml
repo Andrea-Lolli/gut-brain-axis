@@ -1,0 +1,10 @@
+network_file: Int_network.txt
+neural_file: small_net.txt
+stop.at: 200
+world.width: 8
+world.height: 8
+benefico.count: 1
+nocivo.count: 1
+nutrimento.nocivo: 20000
+nutrimento.benefico: 5000
+init.degenerazione: 45
